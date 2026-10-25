@@ -38,7 +38,7 @@ export type PageResult<T> = {
   total: number
 }
 
-const API_URL = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
+const API_URL = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers)

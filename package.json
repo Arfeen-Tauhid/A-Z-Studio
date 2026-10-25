@@ -1,0 +1,21 @@
+{
+  "name": "az-studios",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "Frontend",
+    "Backend"
+  ],
+  "scripts": {
+    "dev": "concurrently -k \"npm run dev --workspace Frontend\" \"npm run dev --workspace Backend\"",
+    "build": "npm run build --workspace Frontend && npm run build --workspace Backend",
+    "lint": "npm run lint --workspace Frontend && npm run lint --workspace Backend",
+    "test": "npm test --workspace Backend",
+    "format": "prettier --write \"Frontend/src/**/*.{ts,tsx,css}\" \"Backend/src/**/*.ts\" \"Backend/test/**/*.ts\" \"Frontend/*.{ts,json,html}\" \"Backend/*.json\" \"*.json\" \"README.md\"",
+    "format:check": "prettier --check \"Frontend/src/**/*.{ts,tsx,css}\" \"Backend/src/**/*.ts\" \"Backend/test/**/*.ts\" \"Frontend/*.{ts,json,html}\" \"Backend/*.json\" \"*.json\" \"README.md\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "prettier": "^3.9.10"
+  }
+}

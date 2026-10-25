@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://a-z-studio-backend.onrender.com/api/:path*"
+    }
+  ]
+}

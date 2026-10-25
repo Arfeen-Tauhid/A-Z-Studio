@@ -39,6 +39,7 @@ import {
 } from './validators/index.js'
 
 const app = express()
+let databaseConnection: Promise<typeof mongoose> | null = null
 const uploadSchema = z.object({ resourceType: z.enum(['image', 'video']) })
 const uploadedMediaSchema = z.object({
   resourceType: z.enum(['image', 'video']),
@@ -59,6 +60,21 @@ app.use((request, response, next) => {
     )
   })
   next()
+})
+
+app.use('/api', async (_request, _response, next) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      databaseConnection ??= mongoose.connect(env.MONGODB_URI).catch((error: unknown) => {
+        databaseConnection = null
+        throw error
+      })
+      await databaseConnection
+    }
+    next()
+  } catch (error) {
+    next(error)
+  }
 })
 
 const makeRateLimiter = (windowMs: number, limit: number) =>
@@ -788,3 +804,4 @@ app.use(notFound)
 app.use(errorHandler)
 
 export { app }
+export default app

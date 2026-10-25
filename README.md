@@ -74,6 +74,7 @@ The public home intro uses the supplied Canon AT-1 FBX model and its 2K texture 
 - If the API runs behind a trusted reverse proxy, set `TRUST_PROXY` to the number of proxy hops so rate limits use the client address safely.
 - Keep the frontend and API on the same site (for example, `studio.example.com` and `api.example.com`) so the HTTP-only `SameSite=Strict` admin session cookie is sent.
 - Set `VITE_API_URL` to the HTTPS API origin when frontend and backend are deployed separately.
+- The backend can run on Vercel with the project root set to `Backend` and the Express preset. Its Express app exports a default handler and connects to MongoDB on API requests. Configure all backend environment variables in Vercel and allow the deployment to reach MongoDB Atlas; check Vercel function logs if requests fail.
 - Restrict MongoDB network access to the API environment and use database credentials with least privilege.
 - Configure Cloudinary credentials and the restricted upload preset only in backend secrets. Limit the preset to the expected image/video formats, `az-studios` folder, and size limits; set retention policies in the Cloudinary account.
 - Use HTTPS, managed secrets, database backups, and a process manager/platform health checks in production.

@@ -42,6 +42,7 @@ type Field = {
     | 'media'
   options?: string[]
   mediaResource?: 'image' | 'video'
+  helpText?: string
   hidden?: boolean
   required?: boolean
   min?: number
@@ -164,7 +165,14 @@ const resourceConfig: Record<ResourceName, { label: string; fields: Field[] }> =
       { name: 'instagramUrl', label: 'Instagram URL', type: 'url' },
       { name: 'youtubeUrl', label: 'YouTube URL', type: 'url' },
       { name: 'linkedinUrl', label: 'LinkedIn URL', type: 'url' },
-      { name: 'showreelUrl', label: 'Homepage showreel', type: 'media', mediaResource: 'video' },
+      {
+        name: 'showreelUrl',
+        label: 'Homepage showreel',
+        type: 'media',
+        mediaResource: 'video',
+        helpText:
+          'Use an MP4 (H.264 recommended) or WebM video. Images and YouTube/Instagram page links cannot play here; upload a video file or paste a direct video-file URL.',
+      },
       { name: 'showreelPublicId', label: 'Showreel storage ID', hidden: true },
       {
         name: 'homeHeadline',
@@ -1034,6 +1042,7 @@ function AdminDashboard({
                           }
                         />
                       )}
+                      {field.helpText && <small>{field.helpText}</small>}
                     </label>
                   ))}
               </div>

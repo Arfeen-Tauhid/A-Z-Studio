@@ -88,14 +88,24 @@ describe('admin account validation', () => {
 })
 
 describe('site settings validation', () => {
-  it('accepts optional contact number and Discord ID fields', () => {
+  it('accepts contact, social, and homepage showreel settings', () => {
     const settings = siteSettingsSchema.parse({
+      studioEmail: 'hello@example.com',
       contactNumber: ' +1 (555) 123-4567 ',
       discordId: 'azstudio#1234',
+      instagramUrl: 'https://instagram.com/azstudio',
+      youtubeUrl: 'https://youtube.com/@azstudio',
+      linkedinUrl: 'https://linkedin.com/company/azstudio',
+      showreelUrl: 'https://cdn.example.com/showreel.mp4',
     })
 
+    assert.equal(settings.studioEmail, 'hello@example.com')
     assert.equal(settings.contactNumber, '+1 (555) 123-4567')
     assert.equal(settings.discordId, 'azstudio#1234')
+    assert.equal(settings.instagramUrl, 'https://instagram.com/azstudio')
+    assert.equal(settings.youtubeUrl, 'https://youtube.com/@azstudio')
+    assert.equal(settings.linkedinUrl, 'https://linkedin.com/company/azstudio')
+    assert.equal(settings.showreelUrl, 'https://cdn.example.com/showreel.mp4')
     assert.equal(siteSettingsSchema.safeParse({ contactNumber: 'x'.repeat(41) }).success, false)
     assert.equal(siteSettingsSchema.safeParse({ discordId: 'x'.repeat(101) }).success, false)
   })

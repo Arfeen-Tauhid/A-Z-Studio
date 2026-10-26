@@ -622,6 +622,7 @@ button {
 .hero-art-shade {
   position: absolute;
   inset: 0;
+  pointer-events: none;
   background:
     linear-gradient(90deg, rgba(11, 16, 32, 0.36), transparent 60%),
     linear-gradient(0deg, rgba(11, 16, 32, 0.66), transparent 45%);
@@ -630,6 +631,7 @@ button {
   position: absolute;
   bottom: 27px;
   left: 28px;
+  pointer-events: none;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -647,6 +649,7 @@ button {
   position: absolute;
   right: 30px;
   bottom: 29px;
+  pointer-events: none;
   font: 11px var(--font-mono);
 }
 .hero-frame-count span {

@@ -3,22 +3,13 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { apiRequest, type SiteSettings } from '../../lib/api'
+import { preloadRoute } from '../../lib/routePreload'
 
 const CameraAssemblyIntro = lazy(() =>
   import('../intro/CameraAssemblyIntro').then((module) => ({
     default: module.CameraAssemblyIntro,
   })),
 )
-
-const INTRO_SESSION_KEY = 'az-studios-intro-seen'
-
-function hasSeenIntro() {
-  try {
-    return sessionStorage.getItem(INTRO_SESSION_KEY) === 'true'
-  } catch {
-    return false
-  }
-}
 
 const links = [
   { to: '/work', label: 'Work' },
@@ -34,25 +25,15 @@ export function SiteLayout() {
   const navigate = useNavigate()
   const prefersReducedMotion = useReducedMotion()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [showIntro, setShowIntro] = useState(() => location.pathname === '/' && !hasSeenIntro())
+  const [showIntro, setShowIntro] = useState(false)
   const [settings, setSettings] = useState<SiteSettings>({})
   const [settingsUnavailable, setSettingsUnavailable] = useState(false)
 
   const completeIntro = useCallback(() => {
-    try {
-      sessionStorage.setItem(INTRO_SESSION_KEY, 'true')
-    } catch {
-      // The intro still completes when session storage is unavailable.
-    }
     setShowIntro(false)
   }, [])
 
   const replayIntro = useCallback(() => {
-    try {
-      sessionStorage.removeItem(INTRO_SESSION_KEY)
-    } catch {
-      // Replay remains available for the current page when storage is unavailable.
-    }
     setShowIntro(true)
     setMenuOpen(false)
     navigate('/')
@@ -119,11 +100,6 @@ export function SiteLayout() {
 
   useEffect(() => {
     if (!showIntro) return
-    try {
-      sessionStorage.setItem(INTRO_SESSION_KEY, 'true')
-    } catch {
-      // Session-level replay prevention is best-effort only.
-    }
 
     const previousOverflow = document.body.style.overflow
     const backgroundRegions = [
@@ -153,7 +129,13 @@ export function SiteLayout() {
       </a>
       <header className="site-header">
         <div className="header-inner shell">
-          <Link className="wordmark" to="/" aria-label="A Z Studios home">
+          <Link
+            className="wordmark"
+            to="/"
+            aria-label="A Z Studios home"
+            onPointerEnter={() => preloadRoute('/')}
+            onFocus={() => preloadRoute('/')}
+          >
             <span className="wordmark-mark">AZ</span>
             <span>
               A Z <span className="wordmark-light">STUDIOS</span>
@@ -170,7 +152,13 @@ export function SiteLayout() {
           </button>
           <nav className={`main-nav${menuOpen ? ' is-open' : ''}`} aria-label="Main navigation">
             {links.map((link) => (
-              <NavLink key={link.to} to={link.to} onClick={() => setMenuOpen(false)}>
+              <NavLink
+                key={link.to}
+                to={link.to}
+                onClick={() => setMenuOpen(false)}
+                onPointerEnter={() => preloadRoute(link.to)}
+                onFocus={() => preloadRoute(link.to)}
+              >
                 {link.label}
               </NavLink>
             ))}
@@ -181,14 +169,28 @@ export function SiteLayout() {
             >
               Admin login
             </NavLink>
-            <Link className="nav-cta" to="/contact" onClick={() => setMenuOpen(false)}>
+            <Link
+              className="nav-cta"
+              to="/contact"
+              onClick={() => setMenuOpen(false)}
+              onPointerEnter={() => preloadRoute('/contact')}
+              onFocus={() => preloadRoute('/contact')}
+            >
               Start a project <ArrowUpRight size={15} />
             </Link>
           </nav>
         </div>
       </header>
       <main id="main">
-        <Outlet />
+        <Suspense
+          fallback={
+            <div className="shell page-shell">
+              <span className="eyebrow">LOADING</span>
+            </div>
+          }
+        >
+          <Outlet />
+        </Suspense>
       </main>
       <footer className="site-footer">
         <div className="shell footer-top">
@@ -247,10 +249,34 @@ export function SiteLayout() {
         <div className="shell footer-bottom">
           <span>© {currentYear} A Z Studios</span>
           <div>
-            <Link to="/services">Services</Link>
-            <Link to="/clients">Clients</Link>
-            <Link to="/pricing">Pricing</Link>
-            <Link to="/contact">Contact</Link>
+            <Link
+              to="/services"
+              onPointerEnter={() => preloadRoute('/services')}
+              onFocus={() => preloadRoute('/services')}
+            >
+              Services
+            </Link>
+            <Link
+              to="/clients"
+              onPointerEnter={() => preloadRoute('/clients')}
+              onFocus={() => preloadRoute('/clients')}
+            >
+              Clients
+            </Link>
+            <Link
+              to="/pricing"
+              onPointerEnter={() => preloadRoute('/pricing')}
+              onFocus={() => preloadRoute('/pricing')}
+            >
+              Pricing
+            </Link>
+            <Link
+              to="/contact"
+              onPointerEnter={() => preloadRoute('/contact')}
+              onFocus={() => preloadRoute('/contact')}
+            >
+              Contact
+            </Link>
           </div>
           <span>Made by Arfeen Tauhid</span>
           <button className="replay-intro" type="button" onClick={replayIntro}>

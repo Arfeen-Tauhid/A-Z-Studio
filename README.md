@@ -66,7 +66,7 @@ Inquiry status changes can include an optional internal note. Notes are visible 
 
 `INQUIRY_WEBHOOK_URL` is an optional alternative server-side HTTPS notification webhook.
 
-The public home intro uses the supplied Canon AT-1 FBX model and its 2K texture maps from `Frontend\public\models\canon-at1`, with the studio backdrop at `Frontend\public\models\studio\studio.fbx`. Keep these assets at those paths when deploying. The original source files remain in `canon-at-1-retro-camera` and `photo-studio-demo`; verify that you have permission to publish the models and follow any attribution terms that came with them.
+The optional 3D intro can be replayed from the site footer; it uses the supplied Canon AT-1 FBX model and its 2K texture maps from `Frontend\public\models\canon-at1`, with the studio backdrop at `Frontend\public\models\studio\studio.fbx`. Keep these assets at those paths when deploying. The original source files remain in `canon-at-1-retro-camera` and `photo-studio-demo`; verify that you have permission to publish the models and follow any attribution terms that came with them.
 
 ## Deployment notes
 

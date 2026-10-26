@@ -1,6 +1,7 @@
 import { ArrowUpRight, Play } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { Project } from '../../lib/api'
+import { preloadRoute } from '../../lib/routePreload'
 
 export function ProjectCard({ project, index = 0 }: { project: Project; index?: number }) {
   return (
@@ -9,6 +10,8 @@ export function ProjectCard({ project, index = 0 }: { project: Project; index?: 
         className="project-image-link"
         to={`/work/${project.slug}`}
         aria-label={`View ${project.title}`}
+        onPointerEnter={() => preloadRoute(`/work/${project.slug}`)}
+        onFocus={() => preloadRoute(`/work/${project.slug}`)}
       >
         {project.thumbnailUrl ? (
           <img className="project-image" src={project.thumbnailUrl} alt="" loading="lazy" />
@@ -27,7 +30,13 @@ export function ProjectCard({ project, index = 0 }: { project: Project; index?: 
       <div className="project-info">
         <div>
           <h3>
-            <Link to={`/work/${project.slug}`}>{project.title}</Link>
+            <Link
+              to={`/work/${project.slug}`}
+              onPointerEnter={() => preloadRoute(`/work/${project.slug}`)}
+              onFocus={() => preloadRoute(`/work/${project.slug}`)}
+            >
+              {project.title}
+            </Link>
           </h3>
           <p>
             {project.clientName ? `${project.clientName} · ` : ''}

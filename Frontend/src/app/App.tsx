@@ -38,29 +38,35 @@ const AdminPage = lazy(() =>
 
 export function App() {
   return (
-    <Suspense
-      fallback={
-        <div className="shell page-shell">
-          <span className="eyebrow">LOADING</span>
-        </div>
-      }
-    >
-      <Routes>
-        <Route element={<SiteLayout />}>
-          <Route index element={<HomePage />} />
-          <Route path="work" element={<WorkPage />} />
-          <Route path="work/:slug" element={<ProjectPage />} />
-          <Route path="services" element={<ServicesPage />} />
-          <Route path="clients" element={<ClientsPage />} />
-          <Route path="about" element={<AboutPage />} />
-          <Route path="process" element={<ProcessPage />} />
-          <Route path="pricing" element={<PricingPage />} />
-          <Route path="contact" element={<ContactPage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/admin/login" element={<AdminPage />} />
-      </Routes>
-    </Suspense>
+    <Routes>
+      <Route element={<SiteLayout />}>
+        <Route index element={<HomePage />} />
+        <Route path="work" element={<WorkPage />} />
+        <Route path="work/:slug" element={<ProjectPage />} />
+        <Route path="services" element={<ServicesPage />} />
+        <Route path="clients" element={<ClientsPage />} />
+        <Route path="about" element={<AboutPage />} />
+        <Route path="process" element={<ProcessPage />} />
+        <Route path="pricing" element={<PricingPage />} />
+        <Route path="contact" element={<ContactPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Route>
+      <Route
+        path="/admin"
+        element={
+          <Suspense fallback={<div className="shell page-shell">Loading admin…</div>}>
+            <AdminPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/admin/login"
+        element={
+          <Suspense fallback={<div className="shell page-shell">Loading admin…</div>}>
+            <AdminPage />
+          </Suspense>
+        }
+      />
+    </Routes>
   )
 }

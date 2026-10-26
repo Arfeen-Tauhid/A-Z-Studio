@@ -11,6 +11,7 @@ import {
   type SiteSettings,
   type StudioService,
 } from '../lib/api'
+import { preloadRoute } from '../lib/routePreload'
 
 const steps = [
   ['01', 'Listen & align', 'We get clear on your audience, goals, references, and deliverables.'],
@@ -132,10 +133,20 @@ export function HomePage() {
             animate={{ opacity: 1 }}
             transition={reducedMotion ? { duration: 0 } : { delay: 0.28 }}
           >
-            <Link className="button button-accent" to="/contact">
+            <Link
+              className="button button-accent"
+              to="/contact"
+              onPointerEnter={() => preloadRoute('/contact')}
+              onFocus={() => preloadRoute('/contact')}
+            >
               Start a project <ArrowUpRight size={17} />
             </Link>
-            <Link className="text-link" to="/work">
+            <Link
+              className="text-link"
+              to="/work"
+              onPointerEnter={() => preloadRoute('/work')}
+              onFocus={() => preloadRoute('/work')}
+            >
               Explore our work <ArrowRight size={16} />
             </Link>
           </motion.div>

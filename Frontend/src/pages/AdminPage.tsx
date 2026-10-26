@@ -196,6 +196,7 @@ const resourceConfig: Record<ResourceName, { label: string; fields: Field[] }> =
 const inquiryFields: Field[] = [
   { name: 'name', label: 'Client name', type: 'text', required: true },
   { name: 'email', label: 'Email address', type: 'email', required: true },
+  { name: 'contactNumber', label: 'Contact number (include country code)', type: 'tel' },
   { name: 'company', label: 'Company or creator name' },
   { name: 'websiteOrSocial', label: 'Website or social profile' },
   { name: 'service', label: 'Service', required: true },
@@ -666,6 +667,7 @@ function AdminDashboard({
         inquiryNumber: typeof record.inquiryNumber === 'string' ? record.inquiryNumber : undefined,
         name: String(record.name ?? ''),
         email: String(record.email ?? ''),
+        contactNumber: typeof record.contactNumber === 'string' ? record.contactNumber : undefined,
         company: typeof record.company === 'string' ? record.company : undefined,
         service: String(record.service ?? ''),
         projectDescription: String(record.projectDescription ?? ''),
@@ -1185,6 +1187,9 @@ function AdminDashboard({
                           {String(item.email)}
                           {item.company ? ` · ${String(item.company)}` : ''}
                         </small>
+                        {typeof item.contactNumber === 'string' && item.contactNumber && (
+                          <small>Phone: {item.contactNumber}</small>
+                        )}
                         <p>{String(item.projectDescription)}</p>
                       </td>
                       <td>{String(item.service)}</td>

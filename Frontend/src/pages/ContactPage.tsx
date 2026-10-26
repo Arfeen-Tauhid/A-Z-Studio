@@ -10,6 +10,7 @@ import { sendStudioInquiryNotification } from '../lib/emailjs'
 const inquirySchema = z.object({
   name: z.string().trim().min(2, 'Please enter your name.').max(100),
   email: z.email('Enter a valid email address.').max(254),
+  contactNumber: z.string().trim().max(40, 'Enter a number with at most 40 characters.').optional(),
   company: z.string().trim().max(120).optional(),
   websiteOrSocial: z.string().trim().max(300).optional(),
   service: z.string().min(1, 'Choose a service.'),
@@ -50,6 +51,7 @@ export function ContactPage() {
         inquiryNumber,
         name: values.name,
         email: values.email,
+        contactNumber: values.contactNumber,
         company: values.company,
         service: values.service,
         projectDescription: values.projectDescription,
@@ -172,6 +174,19 @@ export function ContactPage() {
                 aria-invalid={Boolean(errors.email)}
               />
               {errors.email && <small className="field-error">{errors.email.message}</small>}
+            </label>
+            <label className="field">
+              <span>Contact number (optional)</span>
+              <input
+                type="tel"
+                autoComplete="tel"
+                placeholder="Include country code, e.g. +1 555 123 4567"
+                {...register('contactNumber')}
+                aria-invalid={Boolean(errors.contactNumber)}
+              />
+              {errors.contactNumber && (
+                <small className="field-error">{errors.contactNumber.message}</small>
+              )}
             </label>
             <label className="field">
               <span>Company or creator name</span>

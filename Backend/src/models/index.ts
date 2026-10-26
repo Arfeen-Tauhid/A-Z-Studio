@@ -92,6 +92,7 @@ const inquirySchema = new Schema(
     inquiryNumber: { type: String, required: true, match: /^\d{8}$/ },
     name: { type: String, required: true, trim: true, maxlength: 100 },
     email: { type: String, required: true, trim: true, lowercase: true, maxlength: 254 },
+    contactNumber: { type: String, trim: true, maxlength: 40 },
     company: { type: String, trim: true, maxlength: 120 },
     websiteOrSocial: { type: String, trim: true, maxlength: 300 },
     service: { type: String, required: true, trim: true, maxlength: 100 },

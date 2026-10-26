@@ -147,15 +147,26 @@ describe('Cloudinary media policy', () => {
 })
 
 describe('inquiry validation', () => {
-  it('validates admin-created inquiries and defaults their status', () => {
+  it('validates admin-created inquiries, optional contact number, and default status', () => {
     const inquiry = adminInquirySchema.parse({
       name: 'Alex Example',
       email: 'alex@example.com',
+      contactNumber: ' +1 555 123 4567 ',
       service: 'YouTube video editing',
       projectDescription: 'I need help editing a ten-minute video for my channel.',
     })
 
     assert.equal(inquiry.status, 'new')
+    assert.equal(inquiry.contactNumber, '+1 555 123 4567')
+    assert.equal(
+      adminInquirySchema.safeParse({
+        name: 'Alex Example',
+        email: 'alex@example.com',
+        service: 'YouTube video editing',
+        projectDescription: 'I need help editing a ten-minute video for my channel.',
+      }).success,
+      true,
+    )
     assert.equal(
       adminInquiryUpdateSchema.safeParse({
         status: 'in_progress',
@@ -186,6 +197,30 @@ describe('inquiry validation', () => {
         projectDescription: 'I need an editor for a project.',
         consent: false,
       }),
+    )
+  })
+
+  it('accepts an optional country-code contact number and enforces its length', () => {
+    const inquiry = inquirySchema.parse({
+      name: 'Alex Example',
+      email: 'alex@example.com',
+      contactNumber: ' +44 20 7946 0958 ',
+      service: 'YouTube video editing',
+      projectDescription: 'I need help editing a ten-minute video for my channel.',
+      consent: true,
+    })
+
+    assert.equal(inquiry.contactNumber, '+44 20 7946 0958')
+    assert.equal(
+      inquirySchema.safeParse({
+        name: 'Alex Example',
+        email: 'alex@example.com',
+        contactNumber: 'x'.repeat(41),
+        service: 'YouTube video editing',
+        projectDescription: 'I need help editing a ten-minute video for my channel.',
+        consent: true,
+      }).success,
+      false,
     )
   })
 

@@ -51,6 +51,7 @@ export const inquiryStatusSchema = z.object({
 export const inquirySchema = z.object({
   name: z.string().trim().min(2).max(100),
   email: z.email().max(254),
+  contactNumber: optionalText(40),
   company: optionalText(120),
   websiteOrSocial: optionalText(300),
   service: z.string().trim().min(1).max(100),
@@ -75,6 +76,7 @@ export const publicRatingSchema = z.object({
 export const adminInquirySchema = z.object({
   name: z.string().trim().min(2).max(100),
   email: z.email().max(254),
+  contactNumber: optionalText(40),
   company: optionalText(120),
   websiteOrSocial: optionalText(300),
   service: z.string().trim().min(1).max(100),

@@ -2,6 +2,7 @@ export type InquiryNotification = {
   inquiryNumber?: string
   name: string
   email: string
+  contactNumber?: string
   company?: string
   service: string
   projectDescription: string
@@ -31,6 +32,7 @@ export async function sendStudioInquiryNotification(inquiry: InquiryNotification
         inquiry_number: inquiry.inquiryNumber ?? '',
         from_name: inquiry.name,
         from_email: inquiry.email,
+        contact_number: inquiry.contactNumber ?? '',
         company: inquiry.company ?? '',
         service: inquiry.service,
         project_description: inquiry.projectDescription,

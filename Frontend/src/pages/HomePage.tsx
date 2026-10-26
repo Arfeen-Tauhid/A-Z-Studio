@@ -144,9 +144,14 @@ export function HomePage() {
           {showreelUrl ? (
             <video
               className="hero-reel"
-              controls
+              autoPlay
+              loop
+              muted
               playsInline
-              preload="none"
+              preload="auto"
+              controlsList="nodownload nofullscreen noremoteplayback"
+              disablePictureInPicture
+              disableRemotePlayback
               aria-label="A Z Studios showreel"
             >
               <source src={showreelUrl} />

@@ -1,6 +1,6 @@
 import { ArrowDown, ArrowRight, ArrowUpRight, CirclePlay, Search } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ProjectCard } from '../components/ui/ProjectCard'
 import { SectionHeading } from '../components/ui/SectionHeading'
@@ -72,6 +72,26 @@ export function HomePage() {
   }, [])
 
   const [firstHeadlineLine, ...remainingHeadlineLines] = homeHeadline.split('\n')
+  const headlineLines = [firstHeadlineLine, remainingHeadlineLines.join(' ')].filter(Boolean)
+
+  function renderHeadlineWords(line: string, lineIndex: number, startIndex: number) {
+    const words = line.split(/\s+/)
+    return words.map((word, wordIndex) => (
+      <Fragment key={`${lineIndex}-${wordIndex}`}>
+        <span
+          className={`hero-word${lineIndex > 0 ? ' hero-word-accent' : ''}`}
+          style={{
+            animationDelay: `${reducedMotion ? 0 : 0.12 + (startIndex + wordIndex) * 0.105}s`,
+          }}
+          data-motion={!reducedMotion}
+          data-direction={wordIndex % 2 === 0 ? 'down' : 'up'}
+        >
+          {word}
+        </span>
+        {wordIndex < words.length - 1 ? ' ' : ''}
+      </Fragment>
+    ))
+  }
 
   async function checkInquiryStatus(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -106,15 +126,21 @@ export function HomePage() {
           >
             VIDEO STORYTELLING, MADE WITH INTENTION
           </motion.span>
-          <motion.h1
-            initial={reducedMotion ? false : { opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={reducedMotion ? { duration: 0 } : { delay: 0.08 }}
-          >
-            {firstHeadlineLine}
-            <br />
-            <span>{remainingHeadlineLines.join(' ')}</span>
-          </motion.h1>
+          <h1 aria-label={homeHeadline.replace(/\s+/g, ' ').trim()}>
+            {headlineLines.map((line, lineIndex) => (
+              <span
+                className={`hero-word-line${lineIndex > 0 ? ' hero-word-line-accent' : ''}`}
+                key={`${lineIndex}-${line}`}
+                aria-hidden="true"
+              >
+                {renderHeadlineWords(
+                  line,
+                  lineIndex,
+                  lineIndex === 0 ? 0 : (headlineLines[0]?.split(/\s+/).length ?? 0),
+                )}
+              </span>
+            ))}
+          </h1>
           <motion.p
             className="hero-description"
             initial={reducedMotion ? false : { opacity: 0 }}

@@ -32,6 +32,9 @@ export function ProjectCard({ project, index = 0 }: { project: Project; index?: 
             </span>
           </div>
         )}
+        <span className="project-frame-label" aria-hidden="true">
+          AZ / FRAME {String(index + 1).padStart(2, '0')}
+        </span>
         {project.videoUrl && (
           <span className="project-watch" aria-hidden="true">
             <span className="project-watch-icon">

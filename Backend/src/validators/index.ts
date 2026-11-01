@@ -15,6 +15,26 @@ export const loginSchema = z.object({
     .refine((value) => Buffer.byteLength(value, 'utf8') <= 72, 'Password is too long.'),
 })
 
+const adminPermissionSchema = z.enum([
+  'projects',
+  'clients',
+  'testimonials',
+  'services',
+  'site-settings',
+  'inquiries',
+  'ratings',
+])
+
+export const adminPermissionsSchema = z.object({
+  permissions: z
+    .array(adminPermissionSchema)
+    .min(1, 'Select at least one permission.')
+    .max(7)
+    .refine((permissions) => new Set(permissions).size === permissions.length, {
+      message: 'Permissions must not be duplicated.',
+    }),
+})
+
 export const createAdminSchema = z.object({
   email: z.email().max(254),
   password: z
@@ -24,23 +44,7 @@ export const createAdminSchema = z.object({
       (value) => Buffer.byteLength(value, 'utf8') <= 72,
       'Password cannot exceed 72 UTF-8 bytes.',
     ),
-  permissions: z
-    .array(
-      z.enum([
-        'projects',
-        'clients',
-        'testimonials',
-        'services',
-        'site-settings',
-        'inquiries',
-        'ratings',
-      ]),
-    )
-    .min(1, 'Select at least one permission.')
-    .max(7)
-    .refine((permissions) => new Set(permissions).size === permissions.length, {
-      message: 'Permissions must not be duplicated.',
-    }),
+  permissions: adminPermissionsSchema.shape.permissions,
 })
 
 export const inquiryStatusSchema = z.object({

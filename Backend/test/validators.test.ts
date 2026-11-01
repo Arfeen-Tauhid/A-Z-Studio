@@ -62,6 +62,24 @@ describe('limited admin access', () => {
       false,
     )
   })
+
+  it('lets custom content admins create assigned content and upload its media', () => {
+    const permissions = ['projects', 'clients', 'testimonials', 'services']
+    for (const resource of permissions) {
+      assert.equal(canAccessAdminPath('custom', permissions, 'POST', `/${resource}`), true)
+      assert.equal(canAccessAdminPath('custom', permissions, 'PATCH', `/${resource}/abc123`), true)
+    }
+    assert.equal(
+      canAccessAdminPath('custom', permissions, 'POST', '/uploads/signature', 'image'),
+      true,
+    )
+    assert.equal(
+      canAccessAdminPath('custom', permissions, 'POST', '/uploads/signature', 'video'),
+      true,
+    )
+    assert.equal(canAccessAdminPath('custom', permissions, 'POST', '/site-settings'), false)
+    assert.equal(canAccessAdminPath('custom', permissions, 'POST', '/inquiries'), false)
+  })
 })
 
 describe('admin account validation', () => {

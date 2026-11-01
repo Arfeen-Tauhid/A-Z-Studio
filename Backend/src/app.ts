@@ -27,6 +27,7 @@ import { projectSlugFromTitle, youtubeThumbnailUrl } from './services/youtube.js
 import {
   adminInquirySchema,
   adminInquiryUpdateSchema,
+  adminPermissionsSchema,
   clientSchema,
   createAdminSchema,
   inquiryStatusSchema,
@@ -380,6 +381,37 @@ app.post('/api/admin/admins', requireOwner, async (request, response) => {
     },
     201,
   )
+})
+
+app.patch('/api/admin/admins/:id/permissions', requireOwner, async (request, response) => {
+  if (!mongoose.isValidObjectId(request.params.id)) throw new HttpError(400, 'Invalid admin ID.')
+  const { permissions } = adminPermissionsSchema.parse(request.body)
+  const target = await AdminModel.findById(request.params.id)
+  if (!target) throw new HttpError(404, 'Admin account not found.')
+  if (target.role === 'owner') {
+    throw new HttpError(403, 'Owner permissions cannot be changed from the dashboard.')
+  }
+  const allPermissions = [
+    'projects',
+    'clients',
+    'testimonials',
+    'services',
+    'site-settings',
+    'inquiries',
+    'ratings',
+  ] as const
+  target.permissions = permissions
+  target.role = allPermissions.every((permission) => permissions.includes(permission))
+    ? 'full'
+    : 'custom'
+  await target.save()
+  sendData(response, {
+    _id: target.id,
+    email: target.email,
+    role: target.role,
+    permissions: target.permissions,
+    createdAt: target.createdAt,
+  })
 })
 
 app.delete('/api/admin/admins/:id', requireOwner, async (request, response) => {

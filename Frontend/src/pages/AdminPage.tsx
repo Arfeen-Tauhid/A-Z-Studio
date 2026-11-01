@@ -304,6 +304,7 @@ const permissionOptions: { key: AdminPermission; label: string }[] = [
   { key: 'inquiries', label: 'Inquiries' },
   { key: 'ratings', label: 'Client ratings' },
 ]
+const defaultAdminPermissions = permissionOptions.map((permission) => permission.key)
 const statusOptions = ['new', 'in_progress', 'closed']
 
 function recordLabel(record: CmsRecord, resource: ResourceName) {
@@ -487,12 +488,14 @@ function AdminDashboard({
   const [contentPages, setContentPages] = useState(1)
   const [statusFilter, setStatusFilter] = useState('')
   const [editing, setEditing] = useState<CmsRecord | null>(null)
+  const [editingAdminPermissions, setEditingAdminPermissions] = useState<AdminRecord | null>(null)
+  const [adminPermissionDraft, setAdminPermissionDraft] = useState<AdminPermission[]>([])
   const [uploadingField, setUploadingField] = useState<string | null>(null)
   const [form, setForm] = useState<Record<string, string | boolean>>({})
   const [newAdmin, setNewAdmin] = useState({
     email: '',
     password: '',
-    permissions: ['projects', 'services'] as AdminPermission[],
+    permissions: [...defaultAdminPermissions],
   })
   const [pendingInquiryUpdate, setPendingInquiryUpdate] = useState<InquiryStatusUpdate | null>(null)
   const [sendingInquiryNotification, setSendingInquiryNotification] = useState<string | null>(null)
@@ -859,12 +862,37 @@ function AdminDashboard({
         method: 'POST',
         body: JSON.stringify(newAdmin),
       })
-      setNewAdmin({ email: '', password: '', permissions: ['projects', 'services'] })
+      setNewAdmin({
+        email: '',
+        password: '',
+        permissions: [...defaultAdminPermissions],
+      })
       setNotice('Admin account created. Share its login details securely.')
       setLoading(true)
       await loadData()
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Could not create admin.')
+    }
+  }
+
+  async function saveAdminPermissions(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!editingAdminPermissions || adminPermissionDraft.length === 0) return
+    setError('')
+    setNotice('')
+    try {
+      await apiRequest(`/api/admin/admins/${editingAdminPermissions._id}/permissions`, {
+        method: 'PATCH',
+        body: JSON.stringify({ permissions: adminPermissionDraft }),
+      })
+      setEditingAdminPermissions(null)
+      setAdminPermissionDraft([])
+      setNotice('Admin permissions updated.')
+      await loadData()
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error ? requestError.message : 'Could not update permissions.',
+      )
     }
   }
 
@@ -1046,7 +1074,8 @@ function AdminDashboard({
                   <h2>Create an admin account</h2>
                   <p>Select each section this admin may view and edit.</p>
                   <p>
-                    Admin account management remains owner-only. Unchecked sections are blocked.
+                    All content sections are enabled by default. You can limit access here or change
+                    it later; admin account management remains owner-only.
                   </p>
                 </div>
               </div>
@@ -1106,6 +1135,58 @@ function AdminDashboard({
                     disabled={newAdmin.permissions.length === 0}
                   >
                     <Plus size={15} /> Create admin
+                  </button>
+                </div>
+              </form>
+            </section>
+          ) : null}
+
+          {activeTab === 'admins' && editingAdminPermissions ? (
+            <section className="admin-editor">
+              <div className="admin-editor-heading">
+                <div>
+                  <span className="eyebrow">UPDATE ACCESS</span>
+                  <h2>Permissions for {editingAdminPermissions.email}</h2>
+                  <p>Choose the sections this admin can view and edit.</p>
+                </div>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Close permissions editor"
+                  onClick={() => setEditingAdminPermissions(null)}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <form onSubmit={saveAdminPermissions}>
+                <fieldset className="admin-permission-fieldset">
+                  <legend className="eyebrow">SECTION PERMISSIONS</legend>
+                  <div className="admin-permission-grid">
+                    {permissionOptions.map((permission) => (
+                      <label className="admin-permission-option" key={permission.key}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissionDraft.includes(permission.key)}
+                          onChange={(event) => {
+                            const next = event.target.checked
+                              ? [...adminPermissionDraft, permission.key]
+                              : adminPermissionDraft.filter((item) => item !== permission.key)
+                            setAdminPermissionDraft(next)
+                          }}
+                        />
+                        <span>{permission.label}</span>
+                        <small>View and edit</small>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                <div className="admin-editor-actions">
+                  <button
+                    className="button button-accent"
+                    type="submit"
+                    disabled={adminPermissionDraft.length === 0}
+                  >
+                    <Save size={15} /> Save permissions
                   </button>
                 </div>
               </form>
@@ -1414,13 +1495,24 @@ function AdminDashboard({
                         <td>{new Date(admin.createdAt).toLocaleDateString()}</td>
                         <td>
                           {admin.role !== 'owner' && admin.email !== email ? (
-                            <button
-                              type="button"
-                              className="danger-action"
-                              onClick={() => void revokeAdmin(admin)}
-                            >
-                              Revoke access
-                            </button>
+                            <div className="admin-row-actions">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingAdminPermissions(admin)
+                                  setAdminPermissionDraft(admin.permissions ?? [])
+                                }}
+                              >
+                                Edit permissions
+                              </button>
+                              <button
+                                type="button"
+                                className="danger-action"
+                                onClick={() => void revokeAdmin(admin)}
+                              >
+                                Revoke access
+                              </button>
+                            </div>
                           ) : (
                             <span>Protected</span>
                           )}

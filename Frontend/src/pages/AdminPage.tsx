@@ -66,6 +66,9 @@ type UploadSignature = {
 type CloudinaryResult = { public_id?: string; error?: { message?: string } }
 type VerifiedMedia = { secureUrl: string; publicId: string }
 
+const uploadedVideoHelpText =
+  'Uploaded audio is preserved and optimized for browser playback. Make sure the source file includes an audio track; previews start muted until visitors turn sound on.'
+
 const resourceConfig: Record<
   ResourceName,
   { label: string; fields: Field[]; sample?: ResourceSample }
@@ -142,6 +145,7 @@ const resourceConfig: Record<
         label: 'YouTube video link',
         type: 'media',
         mediaResource: 'video',
+        helpText: uploadedVideoHelpText,
       },
       { name: 'videoPublicId', label: 'Video storage ID', hidden: true },
       {
@@ -164,7 +168,13 @@ const resourceConfig: Record<
     },
     fields: [
       { name: 'name', label: 'Client or project name' },
-      { name: 'videoUrl', label: 'Client video', type: 'media', mediaResource: 'video' },
+      {
+        name: 'videoUrl',
+        label: 'Client video',
+        type: 'media',
+        mediaResource: 'video',
+        helpText: uploadedVideoHelpText,
+      },
       { name: 'videoPublicId', label: 'Video storage ID', hidden: true },
       {
         name: 'videoThumbnailUrl',
@@ -255,8 +265,7 @@ const resourceConfig: Record<
         label: 'Homepage showreel',
         type: 'media',
         mediaResource: 'video',
-        helpText:
-          'Use an MP4/WebM video file or paste a YouTube video link. Playback starts muted; visitors can turn sound on.',
+        helpText: `${uploadedVideoHelpText} You can also paste a YouTube link.`,
       },
       { name: 'showreelPublicId', label: 'Showreel storage ID', hidden: true },
       {

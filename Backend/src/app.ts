@@ -845,9 +845,20 @@ app.post('/api/admin/uploads/verify', async (request, response) => {
     )
   }
 
+  const secureUrl =
+    resourceType === 'video'
+      ? cloudinary.url(resource.public_id, {
+          resource_type: 'video',
+          secure: true,
+          version: String(resource.version),
+          format: 'mp4',
+          transformation: [{ video_codec: 'h264', audio_codec: 'aac' }],
+        })
+      : resource.secure_url
+
   sendData(response, {
     publicId: resource.public_id,
-    secureUrl: resource.secure_url,
+    secureUrl,
     resourceType: resource.resource_type,
     format: resource.format,
     bytes: resource.bytes,

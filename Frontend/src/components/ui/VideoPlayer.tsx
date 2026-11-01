@@ -58,6 +58,7 @@ export function VideoPlayer({
           className="video-player-frame"
           autoPlay
           controls={controls}
+          controlsList="nodownload"
           loop
           muted={muted}
           playsInline

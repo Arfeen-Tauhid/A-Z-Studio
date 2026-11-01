@@ -52,6 +52,30 @@ export const inquiryStatusSchema = z.object({
   comment: z.string().trim().max(2000).optional(),
 })
 
+const budgetAmountSchema = z
+  .string()
+  .trim()
+  .max(100)
+  .refine(
+    (value) =>
+      value === '' ||
+      /^\d{1,12}(?:\.\d{1,2})?$/.test(value) ||
+      ['Under $500', '$500–$1,500', '$1,500–$5,000', '$5,000+', 'Not sure yet'].includes(value),
+    'Enter a valid budget amount.',
+  )
+const budgetCurrencySchema = z.enum([
+  'USD',
+  'EUR',
+  'GBP',
+  'CAD',
+  'AUD',
+  'INR',
+  'AED',
+  'PKR',
+  'BDT',
+  'SAR',
+])
+
 export const inquirySchema = z.object({
   name: z.string().trim().min(2).max(100),
   email: z.email().max(254),
@@ -60,9 +84,8 @@ export const inquirySchema = z.object({
   websiteOrSocial: optionalText(300),
   service: z.string().trim().min(1).max(100),
   projectDescription: z.string().trim().min(20).max(5000),
-  budget: z
-    .enum(['Under $500', '$500–$1,500', '$1,500–$5,000', '$5,000+', 'Not sure yet'])
-    .optional(),
+  budget: budgetAmountSchema.optional(),
+  budgetCurrency: budgetCurrencySchema.optional(),
   deadline: z.union([z.iso.date(), z.literal('')]).optional(),
   deliverables: optionalText(500),
   referenceLinks: optionalText(1000),
@@ -86,9 +109,8 @@ export const adminInquirySchema = z.object({
   websiteOrSocial: optionalText(300),
   service: z.string().trim().min(1).max(100),
   projectDescription: z.string().trim().min(20).max(5000),
-  budget: z
-    .enum(['Under $500', '$500–$1,500', '$1,500–$5,000', '$5,000+', 'Not sure yet'])
-    .optional(),
+  budget: budgetAmountSchema.optional(),
+  budgetCurrency: budgetCurrencySchema.optional(),
   deadline: z.union([z.iso.date(), z.literal('')]).optional(),
   deliverables: optionalText(500),
   referenceLinks: optionalText(1000),

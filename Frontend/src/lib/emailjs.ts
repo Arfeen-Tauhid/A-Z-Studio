@@ -7,6 +7,7 @@ export type InquiryNotification = {
   service: string
   projectDescription: string
   budget?: string
+  budgetCurrency?: string
   deadline?: string
   deliverables?: string
   referenceLinks?: string
@@ -36,7 +37,10 @@ export async function sendStudioInquiryNotification(inquiry: InquiryNotification
         company: inquiry.company ?? '',
         service: inquiry.service,
         project_description: inquiry.projectDescription,
-        budget: inquiry.budget ?? '',
+        budget: inquiry.budget
+          ? [inquiry.budget, inquiry.budgetCurrency].filter(Boolean).join(' ')
+          : '',
+        budget_currency: inquiry.budget ? (inquiry.budgetCurrency ?? '') : '',
         deadline: inquiry.deadline ?? '',
         deliverables: inquiry.deliverables ?? '',
         reference_links: inquiry.referenceLinks ?? '',

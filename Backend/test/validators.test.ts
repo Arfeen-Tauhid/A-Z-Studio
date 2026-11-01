@@ -337,6 +337,46 @@ describe('inquiry validation', () => {
     )
   })
 
+  it('accepts a manually entered budget with a selected currency', () => {
+    const inquiry = inquirySchema.parse({
+      name: 'Alex Example',
+      email: 'alex@example.com',
+      contactNumber: '+44 20 7946 0958',
+      service: 'Podcast editing',
+      projectDescription: 'I need help editing a ten-minute video for my channel.',
+      budget: '1250.50',
+      budgetCurrency: 'GBP',
+      consent: true,
+    })
+
+    assert.equal(inquiry.budget, '1250.50')
+    assert.equal(inquiry.budgetCurrency, 'GBP')
+    assert.equal(
+      inquirySchema.safeParse({
+        name: 'Alex Example',
+        email: 'alex@example.com',
+        service: 'Podcast editing',
+        projectDescription: 'I need help editing a ten-minute video for my channel.',
+        budget: 'about 1000',
+        budgetCurrency: 'GBP',
+        consent: true,
+      }).success,
+      false,
+    )
+    assert.equal(
+      inquirySchema.safeParse({
+        name: 'Alex Example',
+        email: 'alex@example.com',
+        service: 'Podcast editing',
+        projectDescription: 'I need help editing a ten-minute video for my channel.',
+        budget: '1000',
+        budgetCurrency: 'XYZ',
+        consent: true,
+      }).success,
+      false,
+    )
+  })
+
   describe('client showcase validation', () => {
     it('accepts video, a comment screenshot, and a social handle', () => {
       const client = clientSchema.parse({

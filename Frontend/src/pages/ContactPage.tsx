@@ -11,17 +11,23 @@ const inquirySchema = z.object({
   name: z.string().trim().min(2, 'Please enter your name.').max(100),
   email: z.email('Enter a valid email address.').max(254),
   contactNumber: z.string().trim().max(40, 'Enter a number with at most 40 characters.').optional(),
-  company: z.string().trim().max(120).optional(),
-  websiteOrSocial: z.string().trim().max(300).optional(),
   service: z.string().min(1, 'Choose a service.'),
   projectDescription: z
     .string()
     .trim()
     .min(20, 'Please share a little more about your project.')
     .max(5000),
-  budget: z.string().optional(),
+  budget: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || /^\d{1,12}(?:\.\d{1,2})?$/.test(value), {
+      message: 'Enter a valid amount, up to two decimal places.',
+    })
+    .optional(),
+  budgetCurrency: z
+    .enum(['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'INR', 'AED', 'PKR', 'BDT', 'SAR'])
+    .optional(),
   deadline: z.string().optional(),
-  deliverables: z.string().trim().max(500).optional(),
   referenceLinks: z.string().trim().max(1000).optional(),
   consent: z.boolean().refine((value) => value, 'Please confirm that we may contact you.'),
   website: z.string().optional(),
@@ -42,7 +48,7 @@ export function ContactPage() {
     formState: { errors, isSubmitting },
   } = useForm<Inquiry>({
     resolver: zodResolver(inquirySchema),
-    defaultValues: { website: '', consent: false },
+    defaultValues: { website: '', consent: false, budget: '', budgetCurrency: 'USD' },
   })
 
   async function sendEmailNotification(values: Inquiry, inquiryNumber?: string) {
@@ -52,12 +58,11 @@ export function ContactPage() {
         name: values.name,
         email: values.email,
         contactNumber: values.contactNumber,
-        company: values.company,
         service: values.service,
         projectDescription: values.projectDescription,
         budget: values.budget,
+        budgetCurrency: values.budgetCurrency,
         deadline: values.deadline,
-        deliverables: values.deliverables,
         referenceLinks: values.referenceLinks,
       })
       setNotificationError('')
@@ -176,7 +181,7 @@ export function ContactPage() {
               {errors.email && <small className="field-error">{errors.email.message}</small>}
             </label>
             <label className="field">
-              <span>Contact number (optional)</span>
+              <span>Contact number</span>
               <input
                 type="tel"
                 autoComplete="tel"
@@ -187,14 +192,6 @@ export function ContactPage() {
               {errors.contactNumber && (
                 <small className="field-error">{errors.contactNumber.message}</small>
               )}
-            </label>
-            <label className="field">
-              <span>Company or creator name</span>
-              <input autoComplete="organization" {...register('company')} />
-            </label>
-            <label className="field">
-              <span>Website or social profile</span>
-              <input type="url" placeholder="https://" {...register('websiteOrSocial')} />
             </label>
           </div>
 
@@ -224,25 +221,35 @@ export function ContactPage() {
             </label>
             <label className="field">
               <span>Approximate budget</span>
-              <select {...register('budget')}>
-                <option value="">Prefer not to say</option>
-                <option>Under $500</option>
-                <option>$500–$1,500</option>
-                <option>$1,500–$5,000</option>
-                <option>$5,000+</option>
-                <option>Not sure yet</option>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                placeholder="Enter an amount"
+                {...register('budget')}
+                aria-invalid={Boolean(errors.budget)}
+              />
+              {errors.budget && <small className="field-error">{errors.budget.message}</small>}
+            </label>
+            <label className="field">
+              <span>Currency</span>
+              <select {...register('budgetCurrency')}>
+                <option value="USD">USD — US Dollar</option>
+                <option value="EUR">EUR — Euro</option>
+                <option value="GBP">GBP — British Pound</option>
+                <option value="CAD">CAD — Canadian Dollar</option>
+                <option value="AUD">AUD — Australian Dollar</option>
+                <option value="INR">INR — Indian Rupee</option>
+                <option value="AED">AED — UAE Dirham</option>
+                <option value="PKR">PKR — Pakistani Rupee</option>
+                <option value="BDT">BDT — Bangladeshi Taka</option>
+                <option value="SAR">SAR — Saudi Riyal</option>
               </select>
             </label>
             <label className="field">
               <span>Target deadline</span>
               <input type="date" {...register('deadline')} />
-            </label>
-            <label className="field">
-              <span>Video length or deliverables</span>
-              <input
-                placeholder="e.g. 1 x 10 min video, 3 social cutdowns"
-                {...register('deliverables')}
-              />
             </label>
             <label className="field field-full">
               <span>
@@ -259,7 +266,7 @@ export function ContactPage() {
               )}
             </label>
             <label className="field field-full">
-              <span>Reference links</span>
+              <span>Reference link(s)</span>
               <textarea
                 rows={2}
                 placeholder="Links to examples, footage, or a brief (one per line)"

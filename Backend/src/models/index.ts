@@ -108,6 +108,10 @@ const inquirySchema = new Schema(
     service: { type: String, required: true, trim: true, maxlength: 100 },
     projectDescription: { type: String, required: true, trim: true, maxlength: 5000 },
     budget: { type: String, trim: true, maxlength: 100 },
+    budgetCurrency: {
+      type: String,
+      enum: ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'INR', 'AED', 'PKR', 'BDT', 'SAR'],
+    },
     deadline: { type: String, trim: true, maxlength: 40 },
     deliverables: { type: String, trim: true, maxlength: 500 },
     referenceLinks: { type: String, trim: true, maxlength: 1000 },

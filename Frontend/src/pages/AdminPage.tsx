@@ -282,19 +282,17 @@ const inquiryFields: Field[] = [
   { name: 'name', label: 'Client name', type: 'text', required: true },
   { name: 'email', label: 'Email address', type: 'email', required: true },
   { name: 'contactNumber', label: 'Contact number (include country code)', type: 'tel' },
-  { name: 'company', label: 'Company or creator name' },
-  { name: 'websiteOrSocial', label: 'Website or social profile' },
   { name: 'service', label: 'Service', required: true },
   { name: 'projectDescription', label: 'Project description', type: 'textarea', required: true },
+  { name: 'budget', label: 'Approximate budget', type: 'number', min: 0 },
   {
-    name: 'budget',
-    label: 'Approximate budget',
+    name: 'budgetCurrency',
+    label: 'Budget currency',
     type: 'select',
-    options: ['', 'Under $500', '$500–$1,500', '$1,500–$5,000', '$5,000+', 'Not sure yet'],
+    options: ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'INR', 'AED', 'PKR', 'BDT', 'SAR'],
   },
   { name: 'deadline', label: 'Target deadline', type: 'date' },
-  { name: 'deliverables', label: 'Video length or deliverables' },
-  { name: 'referenceLinks', label: 'Reference links', type: 'textarea' },
+  { name: 'referenceLinks', label: 'Reference link(s)', type: 'textarea' },
   {
     name: 'status',
     label: 'Inquiry status',
@@ -770,7 +768,8 @@ function AdminDashboard({
     const fields = activeTab === 'inquiries' ? inquiryFields : resourceConfig[activeTab].fields
     for (const field of fields) {
       const value = payload[field.name]
-      if (field.type === 'number' && value !== '') payload[field.name] = Number(value)
+      if (field.type === 'number' && value !== '' && field.name !== 'budget')
+        payload[field.name] = Number(value)
       if (field.name === 'deliverables' && typeof value === 'string')
         payload[field.name] = value
           .split(',')
@@ -845,6 +844,8 @@ function AdminDashboard({
         service: String(record.service ?? ''),
         projectDescription: String(record.projectDescription ?? ''),
         budget: typeof record.budget === 'string' ? record.budget : undefined,
+        budgetCurrency:
+          typeof record.budgetCurrency === 'string' ? record.budgetCurrency : undefined,
         deadline: typeof record.deadline === 'string' ? record.deadline : undefined,
         deliverables: typeof record.deliverables === 'string' ? record.deliverables : undefined,
         referenceLinks:

@@ -5,15 +5,18 @@ import { preloadRoute } from '../../lib/routePreload'
 import { youtubeThumbnailUrl } from '../../lib/youtube'
 
 export function ProjectCard({ project, index = 0 }: { project: Project; index?: number }) {
+  const isShortForm = project.category.trim().toLowerCase() === 'short-form'
   const thumbnailUrl =
     project.thumbnailUrl ?? (project.videoUrl && youtubeThumbnailUrl(project.videoUrl))
 
   return (
-    <article className={`project-card project-card-${index % 3}`}>
+    <article
+      className={`project-card project-card-${index % 3}${isShortForm ? ' project-card-short-form' : ''}`}
+    >
       <Link
         className="project-image-link"
         to={`/work/${project.slug}`}
-        aria-label={`View ${project.title}`}
+        aria-label={`${isShortForm ? 'Watch reel' : 'View project'}: ${project.title}`}
         onPointerEnter={() => preloadRoute(`/work/${project.slug}`)}
         onFocus={() => preloadRoute(`/work/${project.slug}`)}
       >
@@ -26,6 +29,14 @@ export function ProjectCard({ project, index = 0 }: { project: Project; index?: 
               <Play size={20} fill="currentColor" />
             </span>
           </div>
+        )}
+        {isShortForm && (
+          <span className="project-watch" aria-hidden="true">
+            <span className="project-watch-icon">
+              <Play size={19} fill="currentColor" />
+            </span>
+            <span>Watch reel</span>
+          </span>
         )}
         <span className="project-open">
           <ArrowUpRight size={17} />

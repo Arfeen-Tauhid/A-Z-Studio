@@ -62,7 +62,7 @@ export function ProjectPage() {
       <h1>{project.title}</h1>
       {project.videoUrl ? (
         <VideoPlayer
-          className="detail-video"
+          className={`detail-video${project.category.trim().toLowerCase() === 'short-form' ? ' detail-video-short-form' : ''}`}
           source={project.videoUrl}
           title={`${project.title} project video`}
         />

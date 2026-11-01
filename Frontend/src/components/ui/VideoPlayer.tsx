@@ -16,11 +16,13 @@ export function VideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [audio, setAudio] = useState({ source, muted: true })
+  const [playbackError, setPlaybackError] = useState('')
   const muted = audio.source === source ? audio.muted : true
   const youtubeId = youtubeVideoId(source)
 
   function toggleSound() {
     const nextMuted = !muted
+    setPlaybackError('')
     setAudio({ source, muted: nextMuted })
     if (youtubeId) {
       iframeRef.current?.contentWindow?.postMessage(
@@ -32,7 +34,16 @@ export function VideoPlayer({
         '*',
       )
     } else if (videoRef.current) {
-      videoRef.current.muted = nextMuted
+      const video = videoRef.current
+      video.volume = 1
+      video.muted = nextMuted
+      if (!nextMuted) {
+        void video.play().catch(() => {
+          video.muted = true
+          setAudio({ source, muted: true })
+          setPlaybackError('Playback could not start. Use the video controls to try again.')
+        })
+      }
     }
   }
 
@@ -91,6 +102,11 @@ export function VideoPlayer({
       >
         {muted ? <VolumeX size={17} /> : <Volume2 size={17} />}
       </button>
+      {playbackError && (
+        <span className="video-playback-error" role="status">
+          {playbackError}
+        </span>
+      )}
     </div>
   )
 }

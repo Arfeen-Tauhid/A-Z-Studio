@@ -647,6 +647,20 @@ button {
   border-color: var(--lime);
   background: rgba(11, 16, 32, 0.96);
 }
+.video-playback-error {
+  position: absolute;
+  z-index: 4;
+  right: 12px;
+  bottom: 58px;
+  max-width: min(320px, calc(100% - 24px));
+  padding: 8px 11px;
+  border: 1px solid rgba(236, 238, 232, 0.3);
+  border-radius: 8px;
+  background: rgba(11, 16, 32, 0.92);
+  color: #eceee8;
+  font-size: 11px;
+  line-height: 1.5;
+}
 .video-player video {
   object-fit: cover;
 }

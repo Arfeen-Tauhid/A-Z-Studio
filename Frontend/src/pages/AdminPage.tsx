@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   ArrowRight,
   BriefcaseBusiness,
+  History,
   LogOut,
   Plus,
   Save,
@@ -19,12 +20,14 @@ type ResourceName =
 type AdminPermission = ResourceName | 'inquiries'
 type AdminRole = 'owner' | 'full' | 'limited' | 'custom'
 type AdminRecord = CmsRecord & {
+  adminNumber: number
   email: string
   role: AdminRole
   permissions: AdminPermission[]
   createdAt: string
 }
 type InquiryStatusUpdate = { record: CmsRecord; status: string; comment: string }
+type AdminTab = ResourceName | 'inquiries' | 'admins' | 'activity'
 type CmsRecord = Record<string, unknown> & { _id: string }
 type Field = {
   name: string
@@ -337,6 +340,7 @@ export function AdminPage() {
     location.pathname.endsWith('/login') ? 'signed-out' : 'checking',
   )
   const [email, setEmail] = useState('')
+  const [adminNumber, setAdminNumber] = useState(0)
   const [role, setRole] = useState<AdminRole>('owner')
   const [permissions, setPermissions] = useState<AdminPermission[]>([])
   const [password, setPassword] = useState('')
@@ -344,11 +348,15 @@ export function AdminPage() {
 
   useEffect(() => {
     if (isLoginRoute) return
-    apiRequest<{ email: string; role: AdminRole; permissions: AdminPermission[] }>(
-      '/api/admin/auth/me',
-    )
+    apiRequest<{
+      email: string
+      adminNumber: number
+      role: AdminRole
+      permissions: AdminPermission[]
+    }>('/api/admin/auth/me')
       .then((admin) => {
         setEmail(admin.email)
+        setAdminNumber(admin.adminNumber)
         setRole(admin.role)
         setPermissions(admin.permissions ?? [])
         setAuthState('signed-in')
@@ -366,6 +374,7 @@ export function AdminPage() {
     try {
       const admin = await apiRequest<{
         email: string
+        adminNumber: number
         role: AdminRole
         permissions: AdminPermission[]
       }>('/api/admin/auth/login', {
@@ -373,6 +382,7 @@ export function AdminPage() {
         body: JSON.stringify({ email, password }),
       })
       setEmail(admin.email)
+      setAdminNumber(admin.adminNumber)
       setRole(admin.role)
       setPermissions(admin.permissions ?? [])
       setPassword('')
@@ -441,6 +451,7 @@ export function AdminPage() {
   return (
     <AdminDashboard
       email={email}
+      adminNumber={adminNumber}
       role={role}
       permissions={permissions}
       signOutError={authError}
@@ -459,18 +470,20 @@ export function AdminPage() {
 
 function AdminDashboard({
   email,
+  adminNumber,
   role,
   permissions,
   signOutError,
   onSignOut,
 }: {
   email: string
+  adminNumber: number
   role: AdminRole
   permissions: AdminPermission[]
   signOutError: string
   onSignOut: () => void
 }) {
-  const [activeTab, setActiveTab] = useState<ResourceName | 'inquiries' | 'admins'>(() => {
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     if (role === 'owner' || role === 'full' || role === 'limited') return 'projects'
     return (
       resources.find((resource) => permissions.includes(resource)) ??
@@ -519,6 +532,13 @@ function AdminDashboard({
         sectionCache.current.set(cacheKey, { items, pages: 1 })
         if (currentRequestId === requestId.current) {
           setAdmins(items)
+          setContentPages(1)
+        }
+      } else if (activeTab === 'activity') {
+        const items = await apiRequest<CmsRecord[]>('/api/admin/activity')
+        sectionCache.current.set(cacheKey, { items, pages: 1 })
+        if (currentRequestId === requestId.current) {
+          setRecords(items)
           setContentPages(1)
         }
       } else if (activeTab === 'inquiries') {
@@ -593,11 +613,7 @@ function AdminDashboard({
   }, [activeTab, admins, inquiries, records, search])
   const activeRecords = filteredRecords
 
-  function showCachedSection(
-    tab: ResourceName | 'inquiries' | 'admins',
-    page: number,
-    status: string,
-  ) {
+  function showCachedSection(tab: AdminTab, page: number, status: string) {
     const cached = sectionCache.current.get(`${tab}:${page}:${status}`)
     if (!cached) return false
     if (tab === 'admins') setAdmins(cached.items as AdminRecord[])
@@ -607,7 +623,7 @@ function AdminDashboard({
     return true
   }
 
-  function selectTab(tab: ResourceName | 'inquiries' | 'admins') {
+  function selectTab(tab: AdminTab) {
     setActiveTab(tab)
     setEditing(null)
     setSearch('')
@@ -747,7 +763,7 @@ function AdminDashboard({
 
   async function saveContent(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (activeTab === 'admins') return
+    if (activeTab === 'admins' || activeTab === 'activity') return
     const payload: Record<string, unknown> = { ...form }
     if (activeTab === 'projects') {
       if (!form.thumbnailUrl || !form.videoUrl || !form.thumbnailPublicId || !form.videoPublicId) {
@@ -868,7 +884,7 @@ function AdminDashboard({
     setError('')
     setNotice('')
     try {
-      await apiRequest('/api/admin/admins', {
+      const createdAdmin = await apiRequest<{ adminNumber: number }>('/api/admin/admins', {
         method: 'POST',
         body: JSON.stringify(newAdmin),
       })
@@ -877,7 +893,7 @@ function AdminDashboard({
         password: '',
         permissions: [...defaultAdminPermissions],
       })
-      setNotice('Admin account created. Share its login details securely.')
+      setNotice(`Admin #${createdAdmin.adminNumber} created. Share its login details securely.`)
       setLoading(true)
       await loadData()
     } catch (requestError) {
@@ -930,12 +946,13 @@ function AdminDashboard({
   const visibleResources = resources.filter((resource) => hasPermission(resource))
   const canManageInquiries = hasPermission('inquiries')
   const canEditActiveResource =
-    role === 'owner' ||
-    role === 'full' ||
-    (role === 'limited' && ['projects', 'services'].includes(activeTab)) ||
-    (activeTab === 'inquiries'
-      ? permissions.includes('inquiries')
-      : activeTab !== 'admins' && permissions.includes(activeTab))
+    activeTab !== 'activity' &&
+    (role === 'owner' ||
+      role === 'full' ||
+      (role === 'limited' && ['projects', 'services'].includes(activeTab)) ||
+      (activeTab === 'inquiries'
+        ? permissions.includes('inquiries')
+        : activeTab !== 'admins' && permissions.includes(activeTab)))
 
   return (
     <div className="admin-app">
@@ -955,6 +972,7 @@ function AdminDashboard({
                 ? 'CUSTOM ADMIN'
                 : 'LIMITED ADMIN'}
         </span>
+        <span className="admin-number">ADMIN #{adminNumber}</span>
         <nav aria-label="Admin sections">
           {visibleResources.map((resource) => (
             <button
@@ -978,17 +996,28 @@ function AdminDashboard({
             </button>
           )}
           {role === 'owner' && (
-            <button
-              type="button"
-              className={activeTab === 'admins' ? 'admin-nav-item active' : 'admin-nav-item'}
-              onClick={() => selectTab('admins')}
-            >
-              <Users size={16} />
-              Admin accounts
-            </button>
+            <>
+              <button
+                type="button"
+                className={activeTab === 'admins' ? 'admin-nav-item active' : 'admin-nav-item'}
+                onClick={() => selectTab('admins')}
+              >
+                <Users size={16} />
+                Admin accounts
+              </button>
+              <button
+                type="button"
+                className={activeTab === 'activity' ? 'admin-nav-item active' : 'admin-nav-item'}
+                onClick={() => selectTab('activity')}
+              >
+                <History size={16} />
+                Activity log
+              </button>
+            </>
           )}
         </nav>
         <div className="admin-sidebar-bottom">
+          <span>Admin #{adminNumber}</span>
           <span>{email}</span>
           <button type="button" onClick={onSignOut}>
             <LogOut size={15} /> Sign out
@@ -1010,15 +1039,21 @@ function AdminDashboard({
               <h1>
                 {activeTab === 'admins'
                   ? 'Admin accounts'
-                  : activeTab === 'inquiries'
-                    ? 'Project inquiries'
-                    : activeTab === 'site-settings'
-                      ? 'Site settings'
-                      : resourceConfig[activeTab].label}
+                  : activeTab === 'activity'
+                    ? 'Admin activity log'
+                    : activeTab === 'inquiries'
+                      ? 'Project inquiries'
+                      : activeTab === 'site-settings'
+                        ? 'Site settings'
+                        : resourceConfig[activeTab].label}
               </h1>
-              <p>Manage the content that appears on your public website.</p>
+              <p>
+                {activeTab === 'activity'
+                  ? 'Review who created, changed, uploaded, or deleted dashboard content.'
+                  : 'Manage the content that appears on your public website.'}
+              </p>
             </div>
-            {activeTab !== 'admins' && canEditActiveResource && (
+            {activeTab !== 'admins' && activeTab !== 'activity' && canEditActiveResource && (
               <button className="button button-accent" type="button" onClick={() => openCreate()}>
                 <Plus size={16} /> Add{' '}
                 {activeTab === 'inquiries'
@@ -1051,6 +1086,7 @@ function AdminDashboard({
           </div>
 
           {activeTab !== 'admins' &&
+            activeTab !== 'activity' &&
             activeTab !== 'inquiries' &&
             canEditActiveResource &&
             resourceConfig[activeTab].sample && (
@@ -1083,6 +1119,9 @@ function AdminDashboard({
                   <span className="eyebrow">OWNER ONLY</span>
                   <h2>Create an admin account</h2>
                   <p>Select each section this admin may view and edit.</p>
+                  <p>
+                    Each account receives a unique admin number, which is recorded with its actions.
+                  </p>
                   <p>
                     All content sections are enabled by default. You can limit access here or change
                     it later; admin account management remains owner-only.
@@ -1203,7 +1242,9 @@ function AdminDashboard({
             </section>
           ) : null}
 
-          {activeTab !== 'admins' && (editing !== null || Object.keys(form).length > 0) ? (
+          {activeTab !== 'admins' &&
+          activeTab !== 'activity' &&
+          (editing !== null || Object.keys(form).length > 0) ? (
             <form className="admin-editor" onSubmit={saveContent}>
               <div className="admin-editor-heading">
                 <div>
@@ -1378,9 +1419,11 @@ function AdminDashboard({
               placeholder={`Search ${
                 activeTab === 'admins'
                   ? 'admin accounts'
-                  : activeTab === 'inquiries'
-                    ? 'inquiries'
-                    : resourceConfig[activeTab].label.toLowerCase()
+                  : activeTab === 'activity'
+                    ? 'activity'
+                    : activeTab === 'inquiries'
+                      ? 'inquiries'
+                      : resourceConfig[activeTab].label.toLowerCase()
               }…`}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -1414,14 +1457,56 @@ function AdminDashboard({
               <p className="admin-empty">Loading content…</p>
             ) : activeRecords.length === 0 ? (
               <p className="admin-empty">
-                {activeTab === 'inquiries'
-                  ? 'No inquiries yet.'
-                  : 'No content found. Use the button above to add the first item.'}
+                {activeTab === 'activity'
+                  ? 'No admin activity has been recorded yet.'
+                  : activeTab === 'inquiries'
+                    ? 'No inquiries yet.'
+                    : 'No content found. Use the button above to add the first item.'}
               </p>
+            ) : activeTab === 'activity' ? (
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Admin</th>
+                    <th>Action</th>
+                    <th>Content</th>
+                    <th>Changed fields</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeRecords.map((item) => (
+                    <tr key={item._id}>
+                      <td>
+                        <strong>Admin #{String(item.actorAdminNumber)}</strong>
+                        <small>{String(item.actorEmail)}</small>
+                      </td>
+                      <td>
+                        <span className="status-pill">{String(item.action)}</span>
+                      </td>
+                      <td>
+                        <strong>{String(item.resource)}</strong>
+                        <small>{String(item.recordLabel ?? '')}</small>
+                      </td>
+                      <td>
+                        {Array.isArray(item.changedFields)
+                          ? (item.changedFields as string[]).join(', ') || '—'
+                          : '—'}
+                      </td>
+                      <td>
+                        {typeof item.createdAt === 'string'
+                          ? new Date(item.createdAt).toLocaleString()
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             ) : activeTab === 'admins' ? (
               <table className="admin-table">
                 <thead>
                   <tr>
+                    <th>Admin #</th>
                     <th>Email</th>
                     <th>Permissions</th>
                     <th>Created</th>
@@ -1433,6 +1518,9 @@ function AdminDashboard({
                     const admin = record as AdminRecord
                     return (
                       <tr key={admin._id}>
+                        <td>
+                          <strong>#{admin.adminNumber}</strong>
+                        </td>
                         <td>
                           <strong>{admin.email}</strong>
                         </td>

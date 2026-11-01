@@ -12,6 +12,7 @@ import { z } from 'zod'
 import { env } from './config/env.js'
 import {
   AdminModel,
+  AdminActivityModel,
   ClientModel,
   InquiryModel,
   ProjectModel,
@@ -23,6 +24,7 @@ import {
 import { errorHandler, HttpError, notFound } from './middleware/errors.js'
 import { requireAdmin, requireAdminResourceAccess, requireOwner } from './middleware/auth.js'
 import { getMediaPolicyError, mediaLimits } from './services/mediaPolicy.js'
+import { ensureAdminNumber, nextAdminNumber, recordAdminActivity } from './services/adminAudit.js'
 import { projectSlugFromTitle, youtubeThumbnailUrl } from './services/youtube.js'
 import {
   adminInquirySchema,
@@ -299,6 +301,7 @@ app.post('/api/admin/auth/login', loginLimiter, async (request, response) => {
   const admin = await AdminModel.findOne({ email: email.toLowerCase() }).select('+passwordHash')
   const passwordIsValid = await bcrypt.compare(password, admin?.passwordHash ?? dummyPasswordHash)
   if (!admin || !passwordIsValid) throw new HttpError(401, 'Email or password is incorrect.')
+  const adminNumber = await ensureAdminNumber(admin.id, admin.adminNumber)
 
   const token = jwt.sign({}, env.JWT_SECRET, {
     subject: admin.id,
@@ -313,6 +316,7 @@ app.post('/api/admin/auth/login', loginLimiter, async (request, response) => {
   })
   sendData(response, {
     email: admin.email,
+    adminNumber,
     role: admin.role,
     permissions: admin.permissions ?? [],
   })
@@ -329,10 +333,13 @@ app.post('/api/admin/auth/logout', (_request, response) => {
 })
 
 app.get('/api/admin/auth/me', requireAdmin, async (request, response) => {
-  const admin = await AdminModel.findById(request.adminId).select('email role permissions').lean()
+  const admin = await AdminModel.findById(request.adminId)
+    .select('email role permissions adminNumber')
+    .lean()
   if (!admin) throw new HttpError(401, 'Admin account not found.')
   sendData(response, {
     email: admin.email,
+    adminNumber: admin.adminNumber,
     role: admin.role,
     permissions: admin.permissions ?? [],
   })
@@ -343,9 +350,16 @@ app.use('/api/admin', requireAdminResourceAccess)
 
 app.get('/api/admin/admins', requireOwner, async (_request, response) => {
   const admins = await AdminModel.find()
-    .select('email role permissions createdAt')
+    .select('adminNumber email role permissions createdAt')
     .sort({ createdAt: 1 })
     .lean()
+  await Promise.all(
+    admins.map(async (admin) => {
+      if (typeof admin.adminNumber !== 'number') {
+        admin.adminNumber = await ensureAdminNumber(String(admin._id))
+      }
+    }),
+  )
   sendData(response, admins)
 })
 
@@ -364,16 +378,25 @@ app.post('/api/admin/admins', requireOwner, async (request, response) => {
   const role = allPermissions.every((permission) => input.permissions.includes(permission))
     ? 'full'
     : 'custom'
+  const adminNumber = await nextAdminNumber()
   const admin = await AdminModel.create({
+    adminNumber,
     email: input.email.toLowerCase(),
     passwordHash,
     role,
     permissions: input.permissions,
   })
+  await recordAdminActivity(request, {
+    action: 'create',
+    resource: 'Admin account',
+    recordId: admin.id,
+    recordLabel: `#${admin.adminNumber} ${admin.email}`,
+  })
   sendData(
     response,
     {
       _id: admin.id,
+      adminNumber: admin.adminNumber,
       email: admin.email,
       role: admin.role,
       permissions: admin.permissions,
@@ -405,8 +428,16 @@ app.patch('/api/admin/admins/:id/permissions', requireOwner, async (request, res
     ? 'full'
     : 'custom'
   await target.save()
+  await recordAdminActivity(request, {
+    action: 'permissions',
+    resource: 'Admin account',
+    recordId: target.id,
+    recordLabel: `#${target.adminNumber} ${target.email}`,
+    changedFields: ['permissions', 'role'],
+  })
   sendData(response, {
     _id: target.id,
+    adminNumber: target.adminNumber,
     email: target.email,
     role: target.role,
     permissions: target.permissions,
@@ -419,13 +450,28 @@ app.delete('/api/admin/admins/:id', requireOwner, async (request, response) => {
   if (request.params.id === request.adminId) {
     throw new HttpError(400, 'You cannot revoke your own admin account.')
   }
-  const target = await AdminModel.findById(request.params.id).select('role')
+  const target = await AdminModel.findById(request.params.id).select('role email adminNumber')
   if (!target) throw new HttpError(404, 'Admin account not found.')
   if (target.role === 'owner') {
     throw new HttpError(403, 'Owner accounts cannot be removed from the dashboard.')
   }
   await target.deleteOne()
+  await recordAdminActivity(request, {
+    action: 'revoke',
+    resource: 'Admin account',
+    recordId: target.id,
+    recordLabel: `#${target.adminNumber} ${target.email}`,
+  })
   response.status(204).end()
+})
+
+app.get('/api/admin/activity', requireOwner, async (_request, response) => {
+  const items = await AdminActivityModel.find()
+    .select('-__v')
+    .sort({ createdAt: -1, _id: -1 })
+    .limit(100)
+    .lean()
+  sendData(response, items)
 })
 
 app.get('/api/admin/dashboard', async (request, response) => {
@@ -452,7 +498,21 @@ type ContentResource = {
   list: (page: number, limit: number, status?: string) => Promise<ContentPage>
   create: (input: unknown) => Promise<unknown>
   update: (id: string, input: unknown) => Promise<unknown | null>
-  remove: (id: string) => Promise<boolean>
+  remove: (id: string) => Promise<unknown | null>
+}
+
+function auditRecordLabel(resource: string, value: unknown) {
+  if (!value || typeof value !== 'object') return resource
+  const record = value as Record<string, unknown>
+  const label =
+    record.title ??
+    record.name ??
+    record.clientName ??
+    record.inquiryNumber ??
+    record.email ??
+    record.key
+  if (typeof label !== 'string' && typeof label !== 'number') return resource
+  return String(label)
 }
 
 function registerContentRoutes(
@@ -476,6 +536,13 @@ function registerContentRoutes(
 
   app.post(`/api/admin/${path}`, async (request, response) => {
     const item = await resource.create(request.body)
+    await recordAdminActivity(request, {
+      action: 'create',
+      resource: path,
+      recordId: item && typeof item === 'object' && '_id' in item ? String(item._id) : undefined,
+      recordLabel: auditRecordLabel(path, item),
+      changedFields: Object.keys(request.body),
+    })
     sendData(response, item, 201)
   })
 
@@ -483,6 +550,13 @@ function registerContentRoutes(
     if (!mongoose.isValidObjectId(request.params.id)) throw new HttpError(400, 'Invalid record ID.')
     const item = await resource.update(request.params.id, request.body)
     if (!item) throw new HttpError(404, 'Record not found.')
+    await recordAdminActivity(request, {
+      action: 'update',
+      resource: path,
+      recordId: request.params.id,
+      recordLabel: auditRecordLabel(path, item),
+      changedFields: Object.keys(request.body),
+    })
     sendData(response, item)
   })
 
@@ -490,6 +564,12 @@ function registerContentRoutes(
     if (!mongoose.isValidObjectId(request.params.id)) throw new HttpError(400, 'Invalid record ID.')
     const deleted = await resource.remove(request.params.id)
     if (!deleted) throw new HttpError(404, 'Record not found.')
+    await recordAdminActivity(request, {
+      action: 'delete',
+      resource: path,
+      recordId: request.params.id,
+      recordLabel: auditRecordLabel(path, deleted),
+    })
     response.status(204).end()
   })
 }
@@ -551,7 +631,7 @@ const projectsResource: ContentResource = {
       .lean()
   },
   async remove(id) {
-    return Boolean(await ProjectModel.findByIdAndDelete(id).select('_id').lean())
+    return ProjectModel.findByIdAndDelete(id).lean()
   },
 }
 
@@ -581,7 +661,7 @@ const clientsResource: ContentResource = {
       .lean()
   },
   async remove(id) {
-    return Boolean(await ClientModel.findByIdAndDelete(id).select('_id').lean())
+    return ClientModel.findByIdAndDelete(id).lean()
   },
 }
 
@@ -619,7 +699,7 @@ const testimonialsResource: ContentResource = {
       .lean()
   },
   async remove(id) {
-    return Boolean(await TestimonialModel.findByIdAndDelete(id).select('_id').lean())
+    return TestimonialModel.findByIdAndDelete(id).lean()
   },
 }
 
@@ -649,7 +729,7 @@ const servicesResource: ContentResource = {
       .lean()
   },
   async remove(id) {
-    return Boolean(await ServiceModel.findByIdAndDelete(id).select('_id').lean())
+    return ServiceModel.findByIdAndDelete(id).lean()
   },
 }
 
@@ -687,7 +767,7 @@ const settingsResource: ContentResource = {
       .lean()
   },
   async remove(id) {
-    return Boolean(await SiteSettingsModel.findByIdAndDelete(id).select('_id').lean())
+    return SiteSettingsModel.findByIdAndDelete(id).lean()
   },
 }
 
@@ -717,7 +797,7 @@ const ratingsResource: ContentResource = {
       .lean()
   },
   async remove(id) {
-    return Boolean(await RatingModel.findByIdAndDelete(id).select('_id').lean())
+    return RatingModel.findByIdAndDelete(id).lean()
   },
 }
 
@@ -735,6 +815,13 @@ registerContentRoutes('ratings', ratingsResource)
 app.post('/api/admin/inquiries', async (request, response) => {
   const input = adminInquirySchema.parse(request.body)
   const item = await createInquiryRecord(input, false)
+  await recordAdminActivity(request, {
+    action: 'create',
+    resource: 'inquiries',
+    recordId: item.id,
+    recordLabel: `#${item.inquiryNumber} ${item.name}`,
+    changedFields: Object.keys(request.body),
+  })
   sendData(response, item.toObject({ versionKey: false }), 201)
 })
 
@@ -744,26 +831,40 @@ app.patch('/api/admin/inquiries/:id', async (request, response) => {
   const item = await InquiryModel.findById(request.params.id)
   if (!item) throw new HttpError(404, 'Inquiry not found.')
   if (updates.status && item.status !== updates.status) {
-    const admin = await AdminModel.findById(request.adminId).select('email').lean()
-    if (!admin) throw new HttpError(401, 'Admin account not found.')
+    if (!request.adminEmail || !request.adminNumber) {
+      throw new HttpError(401, 'Admin account identity is unavailable.')
+    }
     item.statusHistory.push({
       fromStatus: item.status,
       toStatus: updates.status,
       comment,
-      updatedBy: admin.email,
+      updatedBy: `#${request.adminNumber} ${request.adminEmail}`,
       updatedAt: new Date(),
     })
   }
   item.set(updates)
   await item.save()
   const result = item.toObject({ versionKey: false })
+  await recordAdminActivity(request, {
+    action: 'update',
+    resource: 'inquiries',
+    recordId: item.id,
+    recordLabel: `#${item.inquiryNumber} ${item.name}`,
+    changedFields: Object.keys(updates),
+  })
   sendData(response, result)
 })
 
 app.delete('/api/admin/inquiries/:id', async (request, response) => {
   if (!mongoose.isValidObjectId(request.params.id)) throw new HttpError(400, 'Invalid inquiry ID.')
-  const deleted = await InquiryModel.findByIdAndDelete(request.params.id).select('_id').lean()
+  const deleted = await InquiryModel.findByIdAndDelete(request.params.id).lean()
   if (!deleted) throw new HttpError(404, 'Inquiry not found.')
+  await recordAdminActivity(request, {
+    action: 'delete',
+    resource: 'inquiries',
+    recordId: request.params.id,
+    recordLabel: `#${deleted.inquiryNumber} ${deleted.name}`,
+  })
   response.status(204).end()
 })
 
@@ -856,6 +957,12 @@ app.post('/api/admin/uploads/verify', async (request, response) => {
         })
       : resource.secure_url
 
+  await recordAdminActivity(request, {
+    action: 'upload',
+    resource: `${resourceType} upload`,
+    recordId: resource.public_id,
+    recordLabel: resource.display_name || resource.public_id,
+  })
   sendData(response, {
     publicId: resource.public_id,
     secureUrl,

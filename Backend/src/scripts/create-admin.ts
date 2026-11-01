@@ -3,6 +3,7 @@ import mongoose from 'mongoose'
 import { z } from 'zod'
 import { AdminModel } from '../models/index.js'
 import { env } from '../config/env.js'
+import { nextAdminNumber } from '../services/adminAudit.js'
 
 const credentials = z
   .object({
@@ -33,7 +34,9 @@ try {
   }
 
   const passwordHash = await bcrypt.hash(credentials.data.BOOTSTRAP_ADMIN_PASSWORD, 12)
+  const adminNumber = await nextAdminNumber()
   await AdminModel.create({
+    adminNumber,
     email: credentials.data.BOOTSTRAP_ADMIN_EMAIL,
     passwordHash,
     role: 'owner',

@@ -2,6 +2,7 @@ import type { RequestHandler } from 'express'
 import jwt from 'jsonwebtoken'
 import { env } from '../config/env.js'
 import { AdminModel } from '../models/index.js'
+import { ensureAdminNumber } from '../services/adminAudit.js'
 import { HttpError } from './errors.js'
 import { canAccessAdminPath, type AdminRole } from './adminAccess.js'
 
@@ -9,6 +10,8 @@ declare global {
   namespace Express {
     interface Request {
       adminId?: string
+      adminNumber?: number
+      adminEmail?: string
       adminRole?: AdminRole
       adminPermissions?: string[]
     }
@@ -42,12 +45,15 @@ export const requireAdmin: RequestHandler = async (request, _response, next) => 
     return
   }
 
-  const admin = await AdminModel.findById(payload.sub).select('role permissions').lean()
+  const admin = await AdminModel.findById(payload.sub).select('role permissions adminNumber email')
   if (!admin) {
     next(new HttpError(401, 'Admin account not found.'))
     return
   }
+  const adminNumber = await ensureAdminNumber(admin.id, admin.adminNumber)
   request.adminId = payload.sub
+  request.adminNumber = adminNumber
+  request.adminEmail = admin.email
   request.adminRole = admin.role
   request.adminPermissions = admin.permissions ?? []
   next()

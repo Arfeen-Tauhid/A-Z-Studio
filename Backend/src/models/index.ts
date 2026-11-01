@@ -133,6 +133,7 @@ inquirySchema.index({ inquiryNumber: 1 }, { unique: true, sparse: true })
 
 const adminSchema = new Schema(
   {
+    adminNumber: { type: Number, unique: true, sparse: true, index: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true, select: false },
     role: { type: String, enum: ['owner', 'full', 'limited', 'custom'], default: 'full' },
@@ -156,6 +157,29 @@ const adminSchema = new Schema(
   },
   { timestamps: true },
 )
+
+const counterSchema = new Schema({
+  _id: { type: String, required: true },
+  value: { type: Number, required: true, default: 0 },
+})
+
+const adminActivitySchema = new Schema(
+  {
+    actorAdminNumber: { type: Number, required: true, index: true },
+    actorEmail: { type: String, required: true, trim: true, maxlength: 254 },
+    action: {
+      type: String,
+      enum: ['create', 'update', 'delete', 'upload', 'permissions', 'revoke'],
+      required: true,
+    },
+    resource: { type: String, required: true, trim: true, maxlength: 80 },
+    recordId: { type: String, trim: true, maxlength: 100 },
+    recordLabel: { type: String, trim: true, maxlength: 200 },
+    changedFields: [{ type: String, trim: true, maxlength: 80 }],
+  },
+  { timestamps: { createdAt: true, updatedAt: false } },
+)
+adminActivitySchema.index({ createdAt: -1 })
 
 const siteSettingsSchema = new Schema(
   {
@@ -184,4 +208,6 @@ export const TestimonialModel = model('Testimonial', testimonialSchema)
 export const RatingModel = model('Rating', ratingSchema)
 export const InquiryModel = model('Inquiry', inquirySchema)
 export const AdminModel = model('Admin', adminSchema)
+export const CounterModel = model('Counter', counterSchema)
+export const AdminActivityModel = model('AdminActivity', adminActivitySchema)
 export const SiteSettingsModel = model('SiteSettings', siteSettingsSchema)

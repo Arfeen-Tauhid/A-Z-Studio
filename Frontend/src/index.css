@@ -1964,6 +1964,11 @@ html.motion-ready #main .motion-reveal.is-visible {
   color: var(--muted);
   font-size: 9px;
 }
+.admin-number {
+  margin: 0 10px 12px;
+  color: var(--lime);
+  font: 10px var(--font-mono);
+}
 .admin-sidebar nav {
   display: grid;
   gap: 4px;
@@ -2497,6 +2502,7 @@ html.motion-ready #main .motion-reveal.is-visible {
     display: none;
   }
   .sidebar-label,
+  .admin-number,
   .admin-sidebar-bottom {
     display: none;
   }

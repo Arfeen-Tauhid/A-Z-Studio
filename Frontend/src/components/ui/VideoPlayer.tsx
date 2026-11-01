@@ -1,4 +1,4 @@
-import { Volume2, VolumeX } from 'lucide-react'
+import { ExternalLink, Volume2, VolumeX } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { youtubeVideoId } from '../../lib/youtube'
 
@@ -43,15 +43,26 @@ export function VideoPlayer({
   return (
     <div className={`video-player ${className}`.trim()}>
       {embedUrl ? (
-        <iframe
-          ref={iframeRef}
-          className="video-player-frame"
-          src={embedUrl}
-          title={title}
-          allow="autoplay; encrypted-media; picture-in-picture; web-share"
-          referrerPolicy="strict-origin-when-cross-origin"
-          allowFullScreen
-        />
+        <>
+          <iframe
+            ref={iframeRef}
+            className="video-player-frame"
+            src={embedUrl}
+            title={title}
+            allow="autoplay; encrypted-media; picture-in-picture; web-share"
+            referrerPolicy="strict-origin-when-cross-origin"
+            allowFullScreen
+          />
+          <a
+            className="video-youtube-link"
+            href={`https://www.youtube.com/watch?v=${youtubeId}`}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`Open ${title} on YouTube`}
+          >
+            Open on YouTube <ExternalLink size={13} />
+          </a>
+        </>
       ) : (
         <video
           ref={videoRef}

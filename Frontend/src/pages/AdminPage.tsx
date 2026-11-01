@@ -9,7 +9,7 @@ import {
   Users,
   X,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { apiRequest, type PageResult } from '../lib/api'
 import { sendStudioInquiryNotification } from '../lib/emailjs'
@@ -48,6 +48,10 @@ type Field = {
   min?: number
   max?: number
 }
+type ResourceSample = {
+  description: string
+  values: Record<string, string | boolean>
+}
 type UploadSignature = {
   timestamp: number
   folder: string
@@ -61,12 +65,27 @@ type UploadSignature = {
 type CloudinaryResult = { public_id?: string; error?: { message?: string } }
 type VerifiedMedia = { secureUrl: string; publicId: string }
 
-const resourceConfig: Record<ResourceName, { label: string; fields: Field[] }> = {
+const resourceConfig: Record<
+  ResourceName,
+  { label: string; fields: Field[]; sample?: ResourceSample }
+> = {
   projects: {
     label: 'Projects',
+    sample: {
+      description:
+        'Project title: Studio launch film · Category: Brand & promo · Client: Northstar Coffee',
+      values: {
+        title: 'Studio launch film',
+        category: 'Brand & promo',
+        clientName: 'Northstar Coffee',
+        description:
+          'A warm launch film introducing Northstar Coffee and the people behind every cup.',
+        videoUrl: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
+        status: 'draft',
+      },
+    },
     fields: [
-      { name: 'title', label: 'Project title' },
-      { name: 'slug', label: 'URL slug' },
+      { name: 'title', label: 'Project title', required: true },
       {
         name: 'category',
         label: 'Category',
@@ -79,26 +98,39 @@ const resourceConfig: Record<ResourceName, { label: string; fields: Field[] }> =
           'Motion graphics',
           'Brand & promo',
         ],
+        required: true,
       },
-      { name: 'clientName', label: 'Client name' },
-      { name: 'description', label: 'Project description', type: 'textarea' },
-      { name: 'thumbnailUrl', label: 'Thumbnail image', type: 'media', mediaResource: 'image' },
-      { name: 'thumbnailPublicId', label: 'Thumbnail storage ID', hidden: true },
-      { name: 'videoUrl', label: 'Video file', type: 'media', mediaResource: 'video' },
-      { name: 'videoPublicId', label: 'Video storage ID', hidden: true },
-      { name: 'brief', label: 'Project brief', type: 'textarea' },
-      { name: 'approach', label: 'Editing approach', type: 'textarea' },
-      { name: 'deliverables', label: 'Deliverables (comma-separated)' },
+      { name: 'clientName', label: 'Client name', required: true },
+      {
+        name: 'description',
+        label: 'Project description',
+        type: 'textarea',
+        required: true,
+      },
+      {
+        name: 'videoUrl',
+        label: 'YouTube video link',
+        type: 'url',
+        helpText: 'Paste a YouTube video link. Its thumbnail is added automatically.',
+      },
       {
         name: 'status',
         label: 'Publication status',
         type: 'select',
-        options: ['draft', 'published', 'archived'],
+        options: ['draft', 'published'],
       },
     ],
   },
   clients: {
     label: 'Clients',
+    sample: {
+      description: 'Client name: Northstar Coffee · Video: a YouTube project highlight',
+      values: {
+        name: 'Northstar Coffee',
+        videoUrl: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
+        isPublished: true,
+      },
+    },
     fields: [
       { name: 'name', label: 'Client or project name' },
       { name: 'videoUrl', label: 'Client video', type: 'media', mediaResource: 'video' },
@@ -124,6 +156,18 @@ const resourceConfig: Record<ResourceName, { label: string; fields: Field[] }> =
   },
   testimonials: {
     label: 'Testimonials',
+    sample: {
+      description: 'Client: Alex Morgan · Role: Founder · Rating: 5 stars',
+      values: {
+        clientName: 'Alex Morgan',
+        role: 'Founder',
+        company: 'Northstar Coffee',
+        quote:
+          'The team understood our vision right away and turned it into a story we are proud to share.',
+        rating: '5',
+        status: 'approved',
+      },
+    },
     fields: [
       { name: 'clientName', label: 'Client name' },
       { name: 'role', label: 'Role or creator category' },
@@ -148,6 +192,17 @@ const resourceConfig: Record<ResourceName, { label: string; fields: Field[] }> =
   },
   services: {
     label: 'Services',
+    sample: {
+      description: 'Service: Social video editing · Includes short-form edits and captions',
+      values: {
+        title: 'Social video editing',
+        description:
+          'Platform-ready edits that turn your footage into clear, engaging social stories.',
+        deliverables: 'Short-form edits, Captions, Platform-ready exports',
+        sortOrder: '1',
+        isActive: true,
+      },
+    },
     fields: [
       { name: 'title', label: 'Service name' },
       { name: 'description', label: 'Description', type: 'textarea' },
@@ -171,7 +226,7 @@ const resourceConfig: Record<ResourceName, { label: string; fields: Field[] }> =
         type: 'media',
         mediaResource: 'video',
         helpText:
-          'Use an MP4 (H.264 recommended) or WebM video. Images and YouTube/Instagram page links cannot play here; upload a video file or paste a direct video-file URL.',
+          'Use an MP4/WebM video file or paste a YouTube video link. Playback starts muted; visitors can turn sound on.',
       },
       { name: 'showreelPublicId', label: 'Showreel storage ID', hidden: true },
       {
@@ -227,7 +282,6 @@ const permissionOptions: { key: AdminPermission; label: string }[] = [
   { key: 'services', label: 'Services' },
   { key: 'site-settings', label: 'Site settings' },
   { key: 'inquiries', label: 'Inquiries' },
-  { key: 'ratings', label: 'Client ratings' },
   { key: 'ratings', label: 'Client ratings' },
 ]
 const statusOptions = ['new', 'in_progress', 'closed']
@@ -404,6 +458,8 @@ function AdminDashboard({
     newInquiries: 0,
   })
   const [loading, setLoading] = useState(true)
+  const sectionCache = useRef(new Map<string, { items: CmsRecord[]; pages: number }>())
+  const requestId = useRef(0)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [search, setSearch] = useState('')
@@ -422,6 +478,44 @@ function AdminDashboard({
   const [sendingInquiryNotification, setSendingInquiryNotification] = useState<string | null>(null)
 
   const loadData = useCallback(async () => {
+    const currentRequestId = ++requestId.current
+    const cacheKey = `${activeTab}:${contentPage}:${statusFilter}`
+    try {
+      const query = new URLSearchParams({ page: String(contentPage), limit: '20' })
+      if (statusFilter) query.set('status', statusFilter)
+      if (activeTab === 'admins') {
+        const items = await apiRequest<AdminRecord[]>('/api/admin/admins')
+        sectionCache.current.set(cacheKey, { items, pages: 1 })
+        if (currentRequestId === requestId.current) {
+          setAdmins(items)
+          setContentPages(1)
+        }
+      } else if (activeTab === 'inquiries') {
+        const result = await apiRequest<PageResult<CmsRecord>>(`/api/admin/inquiries?${query}`)
+        sectionCache.current.set(cacheKey, { items: result.items, pages: result.pages })
+        if (currentRequestId === requestId.current) {
+          setInquiries(result.items)
+          setContentPages(result.pages)
+        }
+      } else {
+        const result = await apiRequest<PageResult<CmsRecord>>(`/api/admin/${activeTab}?${query}`)
+        sectionCache.current.set(cacheKey, { items: result.items, pages: result.pages })
+        if (currentRequestId === requestId.current) {
+          setRecords(result.items)
+          setContentPages(result.pages)
+        }
+      }
+    } catch (requestError) {
+      if (currentRequestId === requestId.current)
+        setError(
+          requestError instanceof Error ? requestError.message : 'Unable to load section data.',
+        )
+    } finally {
+      if (currentRequestId === requestId.current) setLoading(false)
+    }
+  }, [activeTab, contentPage, statusFilter])
+
+  const refreshDashboard = useCallback(async () => {
     try {
       const dashboard = await apiRequest<Partial<typeof counts>>('/api/admin/dashboard')
       setCounts({
@@ -430,28 +524,31 @@ function AdminDashboard({
         inquiries: dashboard.inquiries ?? 0,
         newInquiries: dashboard.newInquiries ?? 0,
       })
-      const query = new URLSearchParams({ page: String(contentPage), limit: '20' })
-      if (statusFilter) query.set('status', statusFilter)
-      if (activeTab === 'admins') {
-        setAdmins(await apiRequest<AdminRecord[]>('/api/admin/admins'))
-        setContentPages(1)
-      } else if (activeTab === 'inquiries') {
-        const result = await apiRequest<PageResult<CmsRecord>>(`/api/admin/inquiries?${query}`)
-        setInquiries(result.items)
-        setContentPages(result.pages)
-      } else {
-        const result = await apiRequest<PageResult<CmsRecord>>(`/api/admin/${activeTab}?${query}`)
-        setRecords(result.items)
-        setContentPages(result.pages)
-      }
     } catch (requestError) {
       setError(
-        requestError instanceof Error ? requestError.message : 'Unable to load dashboard data.',
+        requestError instanceof Error ? requestError.message : 'Unable to load dashboard summary.',
       )
-    } finally {
-      setLoading(false)
     }
-  }, [activeTab, contentPage, statusFilter])
+  }, [])
+
+  useEffect(() => {
+    apiRequest<Partial<typeof counts>>('/api/admin/dashboard')
+      .then((dashboard) => {
+        setCounts({
+          projects: dashboard.projects ?? 0,
+          publishedProjects: dashboard.publishedProjects ?? 0,
+          inquiries: dashboard.inquiries ?? 0,
+          newInquiries: dashboard.newInquiries ?? 0,
+        })
+      })
+      .catch((requestError: unknown) => {
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : 'Unable to load dashboard summary.',
+        )
+      })
+  }, [])
 
   useEffect(() => {
     void Promise.resolve().then(loadData)
@@ -465,26 +562,40 @@ function AdminDashboard({
   }, [activeTab, admins, inquiries, records, search])
   const activeRecords = filteredRecords
 
+  function showCachedSection(
+    tab: ResourceName | 'inquiries' | 'admins',
+    page: number,
+    status: string,
+  ) {
+    const cached = sectionCache.current.get(`${tab}:${page}:${status}`)
+    if (!cached) return false
+    if (tab === 'admins') setAdmins(cached.items as AdminRecord[])
+    else if (tab === 'inquiries') setInquiries(cached.items)
+    else setRecords(cached.items)
+    setContentPages(cached.pages)
+    return true
+  }
+
   function selectTab(tab: ResourceName | 'inquiries' | 'admins') {
     setActiveTab(tab)
     setEditing(null)
     setSearch('')
     setStatusFilter('')
     setContentPage(1)
-    setLoading(true)
+    setLoading(!showCachedSection(tab, 1, ''))
     setError('')
   }
 
   function selectPage(page: number) {
     setContentPage(page)
-    setLoading(true)
+    setLoading(!showCachedSection(activeTab, page, statusFilter))
     setError('')
   }
 
   function selectStatus(status: string) {
     setStatusFilter(status)
     setContentPage(1)
-    setLoading(true)
+    setLoading(!showCachedSection(activeTab, 1, status))
     setError('')
   }
 
@@ -546,10 +657,10 @@ function AdminDashboard({
     }
   }
 
-  function openCreate() {
+  function openCreate(sample?: ResourceSample) {
     setEditing(null)
-    setForm(
-      Object.fromEntries(
+    setForm({
+      ...Object.fromEntries(
         (activeTab === 'inquiries'
           ? inquiryFields
           : resourceConfig[activeTab as ResourceName].fields
@@ -564,7 +675,8 @@ function AdminDashboard({
                 : '',
         ]),
       ),
-    )
+      ...sample?.values,
+    })
     setError('')
     setNotice('')
   }
@@ -604,7 +716,8 @@ function AdminDashboard({
           .split(',')
           .map((item) => item.trim())
           .filter(Boolean)
-      if (payload[field.name] === '') delete payload[field.name]
+      if (payload[field.name] === '' && !(activeTab === 'projects' && field.name === 'videoUrl'))
+        delete payload[field.name]
     }
     setError('')
     setNotice('')
@@ -619,7 +732,7 @@ function AdminDashboard({
       setEditing(null)
       setLoading(true)
       setNotice('Changes saved.')
-      await loadData()
+      await Promise.all([loadData(), refreshDashboard()])
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Could not save this item.')
     }
@@ -636,7 +749,7 @@ function AdminDashboard({
       await apiRequest(`/api/admin/${activeTab}/${record._id}`, { method: 'DELETE' })
       setLoading(true)
       setNotice('Item deleted.')
-      await loadData()
+      await Promise.all([loadData(), refreshDashboard()])
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Could not delete this item.')
     }
@@ -652,7 +765,7 @@ function AdminDashboard({
       setPendingInquiryUpdate(null)
       setLoading(true)
       setNotice('Inquiry status updated.')
-      await loadData()
+      await Promise.all([loadData(), refreshDashboard()])
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Could not update inquiry.')
     }
@@ -820,7 +933,7 @@ function AdminDashboard({
               <p>Manage the content that appears on your public website.</p>
             </div>
             {activeTab !== 'admins' && canEditActiveResource && (
-              <button className="button button-accent" type="button" onClick={openCreate}>
+              <button className="button button-accent" type="button" onClick={() => openCreate()}>
                 <Plus size={16} /> Add{' '}
                 {activeTab === 'inquiries'
                   ? 'inquiry'
@@ -850,6 +963,21 @@ function AdminDashboard({
               </>
             )}
           </div>
+
+          {activeTab !== 'admins' &&
+            activeTab !== 'inquiries' &&
+            canEditActiveResource &&
+            resourceConfig[activeTab].sample && (
+              <aside className="admin-example">
+                <div>
+                  <span className="eyebrow">QUICK EXAMPLE</span>
+                  <p>{resourceConfig[activeTab].sample.description}</p>
+                </div>
+                <button type="button" onClick={() => openCreate(resourceConfig[activeTab].sample)}>
+                  Use this sample
+                </button>
+              </aside>
+            )}
 
           {(error || signOutError) && (
             <p className="admin-alert" role="alert">
@@ -997,8 +1125,14 @@ function AdminDashboard({
                           }
                         >
                           {field.options?.map((option) => (
-                            <option key={option}>{option}</option>
+                            <option key={option} value={option}>
+                              {option.charAt(0).toUpperCase() +
+                                option.slice(1).replaceAll('_', ' ')}
+                            </option>
                           ))}
+                          {activeTab === 'projects' && editing && form.status === 'archived' && (
+                            <option value="archived">Archived</option>
+                          )}
                         </select>
                       ) : field.type === 'checkbox' ? (
                         <input
@@ -1038,6 +1172,11 @@ function AdminDashboard({
                           required={field.required}
                           min={field.min}
                           max={field.max}
+                          placeholder={
+                            activeTab === 'projects' && field.name === 'videoUrl'
+                              ? 'https://www.youtube.com/watch?v=...'
+                              : undefined
+                          }
                           value={String(form[field.name] ?? '')}
                           onChange={(event) =>
                             setForm({ ...form, [field.name]: event.target.value })
@@ -1095,12 +1234,14 @@ function AdminDashboard({
                 >
                   <option value="">All statuses</option>
                   {(activeTab === 'projects'
-                    ? ['draft', 'published', 'archived']
+                    ? ['draft', 'published']
                     : activeTab === 'testimonials'
                       ? ['draft', 'approved', 'archived']
                       : statusOptions
                   ).map((status) => (
-                    <option key={status}>{status}</option>
+                    <option key={status} value={status}>
+                      {status.charAt(0).toUpperCase() + status.slice(1).replaceAll('_', ' ')}
+                    </option>
                   ))}
                 </select>
               )}

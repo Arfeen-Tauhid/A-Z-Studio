@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowUpRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ProjectCard } from '../components/ui/ProjectCard'
+import { VideoPlayer } from '../components/ui/VideoPlayer'
 import { apiRequest, type PageResult, type Project } from '../lib/api'
 
 export function ProjectPage() {
@@ -60,16 +61,11 @@ export function ProjectPage() {
       </span>
       <h1>{project.title}</h1>
       {project.videoUrl ? (
-        <video
+        <VideoPlayer
           className="detail-video"
-          controls
-          playsInline
-          poster={project.thumbnailUrl}
-          preload="none"
-        >
-          <source src={project.videoUrl} />
-          Your browser does not support video playback.
-        </video>
+          source={project.videoUrl}
+          title={`${project.title} project video`}
+        />
       ) : project.thumbnailUrl ? (
         <img
           className="detail-poster"

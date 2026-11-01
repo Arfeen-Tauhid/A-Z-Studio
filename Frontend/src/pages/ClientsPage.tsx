@@ -1,6 +1,7 @@
 import { ArrowUpRight, Star } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { VideoPlayer } from '../components/ui/VideoPlayer'
 import { apiRequest } from '../lib/api'
 
 type Client = {
@@ -108,17 +109,11 @@ export function ClientsPage() {
                 </p>
               )}
               {client.videoUrl && (
-                <video
+                <VideoPlayer
                   className="client-video"
-                  controls
-                  playsInline
-                  preload="none"
-                  poster={client.videoThumbnailUrl}
-                  aria-label={`${client.name} video`}
-                >
-                  <source src={client.videoUrl} />
-                  Your browser does not support video playback.
-                </video>
+                  source={client.videoUrl}
+                  title={`${client.name} video`}
+                />
               )}
               {client.commentScreenshotUrl && (
                 <a

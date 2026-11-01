@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ProjectCard } from '../components/ui/ProjectCard'
 import { SectionHeading } from '../components/ui/SectionHeading'
+import { VideoPlayer } from '../components/ui/VideoPlayer'
 import {
   apiRequest,
   type PageResult,
@@ -153,20 +154,12 @@ export function HomePage() {
         </div>
         <div className="hero-art" aria-label="Cinematic landscape preview">
           {showreelUrl ? (
-            <video
+            <VideoPlayer
               className="hero-reel"
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload="auto"
-              controlsList="nodownload nofullscreen noremoteplayback"
-              disablePictureInPicture
-              disableRemotePlayback
-              aria-label="A Z Studios showreel"
-            >
-              <source src={showreelUrl} />
-            </video>
+              source={showreelUrl}
+              title="A Z Studios showreel"
+              controls={false}
+            />
           ) : (
             <img
               src="https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?auto=format&fit=crop&w=1500&q=85"

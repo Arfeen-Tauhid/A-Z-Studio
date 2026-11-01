@@ -23,6 +23,7 @@ import {
 import { errorHandler, HttpError, notFound } from './middleware/errors.js'
 import { requireAdmin, requireAdminResourceAccess, requireOwner } from './middleware/auth.js'
 import { getMediaPolicyError, mediaLimits } from './services/mediaPolicy.js'
+import { projectSlugFromTitle, youtubeThumbnailUrl } from './services/youtube.js'
 import {
   adminInquirySchema,
   adminInquiryUpdateSchema,
@@ -475,8 +476,17 @@ const projectsResource: ContentResource = {
   },
   async create(input) {
     const parsed = projectSchema.parse(input)
+    const baseSlug = parsed.slug ?? projectSlugFromTitle(parsed.title)
+    let slug = baseSlug
+    let suffix = 2
+    while (await ProjectModel.exists({ slug })) {
+      slug = `${baseSlug}-${suffix}`
+      suffix += 1
+    }
     return ProjectModel.create({
       ...parsed,
+      slug,
+      thumbnailUrl: youtubeThumbnailUrl(parsed.videoUrl) ?? parsed.thumbnailUrl,
       publishedAt: parsed.status === 'published' ? new Date() : undefined,
     })
   },
@@ -487,6 +497,12 @@ const projectsResource: ContentResource = {
       .parse(input)
     const update = {
       ...parsed,
+      ...(parsed.videoUrl !== undefined
+        ? {
+            thumbnailUrl:
+              youtubeThumbnailUrl(parsed.videoUrl) ?? (parsed.videoUrl === '' ? '' : undefined),
+          }
+        : {}),
       ...(parsed.status === 'published' ? { publishedAt: new Date() } : {}),
     }
     return ProjectModel.findByIdAndUpdate(id, update, { new: true, runValidators: true })

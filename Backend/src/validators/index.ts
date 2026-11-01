@@ -107,9 +107,9 @@ export const projectSchema = z.object({
   slug: z
     .string()
     .trim()
-    .min(1)
     .max(160)
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+    .optional(),
   title: z.string().trim().min(1).max(160),
   category: z.enum([
     'Short-form',
@@ -124,7 +124,7 @@ export const projectSchema = z.object({
   thumbnailPublicId: optionalText(300),
   videoUrl: url,
   videoPublicId: optionalText(300),
-  clientName: optionalText(160),
+  clientName: z.string().trim().min(1).max(160),
   brief: optionalText(4000),
   approach: optionalText(4000),
   deliverables: z.array(z.string().trim().min(1).max(160)).max(30).optional(),

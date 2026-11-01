@@ -12,6 +12,11 @@ import {
   siteSettingsSchema,
 } from '../src/validators/index.js'
 import { getMediaPolicyError } from '../src/services/mediaPolicy.js'
+import {
+  projectSlugFromTitle,
+  youtubeThumbnailUrl,
+  youtubeVideoId,
+} from '../src/services/youtube.js'
 import { canAccessAdminPath } from '../src/middleware/adminAccess.js'
 
 describe('limited admin access', () => {
@@ -114,13 +119,14 @@ describe('site settings validation', () => {
 describe('project validation', () => {
   it('defaults new project content to draft', () => {
     const project = projectSchema.parse({
-      slug: 'studio-reel',
       title: 'Studio reel',
       category: 'Brand & promo',
+      clientName: 'Northstar Coffee',
       description: 'A short approved project description.',
     })
 
     assert.equal(project.status, 'draft')
+    assert.equal(project.slug, undefined)
   })
 
   it('rejects unsafe or malformed project slugs', () => {
@@ -129,9 +135,21 @@ describe('project validation', () => {
         slug: '../private',
         title: 'Project',
         category: 'YouTube',
+        clientName: 'Northstar Coffee',
         description: 'Description',
       }),
     )
+  })
+
+  it('creates safe project slugs and YouTube thumbnails from supported video links', () => {
+    assert.equal(projectSlugFromTitle('Studio Reel — 2026'), 'studio-reel-2026')
+    assert.equal(youtubeVideoId('https://youtu.be/aqz-KE-bpKQ?t=10'), 'aqz-KE-bpKQ')
+    assert.equal(
+      youtubeThumbnailUrl('https://www.youtube.com/watch?v=aqz-KE-bpKQ'),
+      'https://img.youtube.com/vi/aqz-KE-bpKQ/hqdefault.jpg',
+    )
+    assert.equal(youtubeVideoId('https://example.com/watch?v=aqz-KE-bpKQ'), null)
+    assert.equal(youtubeVideoId('https://www.youtube.com/watch?v=invalid'), null)
   })
 })
 

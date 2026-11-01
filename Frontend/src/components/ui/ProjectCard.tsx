@@ -2,8 +2,12 @@ import { ArrowUpRight, Play } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { Project } from '../../lib/api'
 import { preloadRoute } from '../../lib/routePreload'
+import { youtubeThumbnailUrl } from '../../lib/youtube'
 
 export function ProjectCard({ project, index = 0 }: { project: Project; index?: number }) {
+  const thumbnailUrl =
+    project.thumbnailUrl ?? (project.videoUrl && youtubeThumbnailUrl(project.videoUrl))
+
   return (
     <article className={`project-card project-card-${index % 3}`}>
       <Link
@@ -13,8 +17,8 @@ export function ProjectCard({ project, index = 0 }: { project: Project; index?: 
         onPointerEnter={() => preloadRoute(`/work/${project.slug}`)}
         onFocus={() => preloadRoute(`/work/${project.slug}`)}
       >
-        {project.thumbnailUrl ? (
-          <img className="project-image" src={project.thumbnailUrl} alt="" loading="lazy" />
+        {thumbnailUrl ? (
+          <img className="project-image" src={thumbnailUrl} alt="" loading="lazy" />
         ) : (
           <div className="project-image project-placeholder" aria-hidden="true">
             <span className="placeholder-grain" />

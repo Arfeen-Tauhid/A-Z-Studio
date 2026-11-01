@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { apiRequest, type PageResult } from '../lib/api'
+import { apiRequest, ApiRequestError, type PageResult } from '../lib/api'
 import { sendStudioInquiryNotification } from '../lib/emailjs'
 
 type ResourceName =
@@ -503,6 +503,7 @@ function AdminDashboard({
   const sectionCache = useRef(new Map<string, { items: CmsRecord[]; pages: number }>())
   const requestId = useRef(0)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [notice, setNotice] = useState('')
   const [search, setSearch] = useState('')
   const [contentPage, setContentPage] = useState(1)
@@ -646,8 +647,32 @@ function AdminDashboard({
     setError('')
   }
 
+  function clearFieldError(field: string) {
+    setFieldErrors((current) => {
+      if (!(field in current)) return current
+      const next = { ...current }
+      delete next[field]
+      return next
+    })
+  }
+
+  function setRequestFieldErrors(requestError: unknown) {
+    if (!(requestError instanceof ApiRequestError) || requestError.details.length === 0) {
+      setFieldErrors({})
+      return false
+    }
+    const errorsByField: Record<string, string> = {}
+    for (const detail of requestError.details) {
+      const field = detail.field.replace(/PublicId$/, 'Url')
+      if (field && !(field in errorsByField)) errorsByField[field] = detail.message
+    }
+    setFieldErrors(errorsByField)
+    return Object.keys(errorsByField).length > 0
+  }
+
   async function uploadMedia(field: Field, file?: File) {
     if (!file || !field.mediaResource) return
+    clearFieldError(field.name)
     const allowedTypes =
       field.mediaResource === 'image'
         ? ['image/jpeg', 'image/png', 'image/webp']
@@ -706,6 +731,7 @@ function AdminDashboard({
 
   function openCreate(sample?: ResourceSample) {
     setEditing(null)
+    setFieldErrors({})
     setForm({
       ...Object.fromEntries(
         (activeTab === 'inquiries'
@@ -732,6 +758,7 @@ function AdminDashboard({
 
   function openEdit(record: CmsRecord) {
     setEditing(record)
+    setFieldErrors({})
     setForm({
       ...Object.fromEntries(
         (activeTab === 'inquiries'
@@ -767,7 +794,12 @@ function AdminDashboard({
     const payload: Record<string, unknown> = { ...form }
     if (activeTab === 'projects') {
       if (!form.thumbnailUrl || !form.videoUrl || !form.thumbnailPublicId || !form.videoPublicId) {
-        setError('Upload both a thumbnail image and a video file before saving this project.')
+        const missingMedia: Record<string, string> = {}
+        if (!form.thumbnailUrl || !form.thumbnailPublicId)
+          missingMedia.thumbnailUrl = 'Upload a thumbnail image.'
+        if (!form.videoUrl || !form.videoPublicId) missingMedia.videoUrl = 'Upload a video file.'
+        setFieldErrors(missingMedia)
+        setError('Please correct the highlighted fields.')
         return
       }
     }
@@ -778,7 +810,13 @@ function AdminDashboard({
         Number(form.rating) < 1 ||
         Number(form.rating) > 5)
     ) {
-      setError('Add the feedback screenshot and a rating from 1 to 5.')
+      const testimonialErrors: Record<string, string> = {}
+      if (!form.commentScreenshotUrl)
+        testimonialErrors.commentScreenshotUrl = 'Upload a feedback screenshot.'
+      if (!form.rating || Number(form.rating) < 1 || Number(form.rating) > 5)
+        testimonialErrors.rating = 'Enter a rating from 1 to 5.'
+      setFieldErrors(testimonialErrors)
+      setError('Please correct the highlighted fields.')
       return
     }
     const fields = activeTab === 'inquiries' ? inquiryFields : resourceConfig[activeTab].fields
@@ -796,6 +834,7 @@ function AdminDashboard({
     }
     setError('')
     setNotice('')
+    setFieldErrors({})
     try {
       await apiRequest(
         editing ? `/api/admin/${activeTab}/${editing._id}` : `/api/admin/${activeTab}`,
@@ -809,7 +848,9 @@ function AdminDashboard({
       setNotice('Changes saved.')
       await Promise.all([loadData(), refreshDashboard()])
     } catch (requestError) {
+      const hasFieldErrors = setRequestFieldErrors(requestError)
       setError(requestError instanceof Error ? requestError.message : 'Could not save this item.')
+      if (hasFieldErrors) setError('Please correct the highlighted fields.')
     }
   }
 
@@ -883,6 +924,7 @@ function AdminDashboard({
     event.preventDefault()
     setError('')
     setNotice('')
+    setFieldErrors({})
     try {
       const createdAdmin = await apiRequest<{ adminNumber: number }>('/api/admin/admins', {
         method: 'POST',
@@ -897,7 +939,14 @@ function AdminDashboard({
       setLoading(true)
       await loadData()
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Could not create admin.')
+      const hasFieldErrors = setRequestFieldErrors(requestError)
+      setError(
+        hasFieldErrors
+          ? 'Please correct the highlighted fields.'
+          : requestError instanceof Error
+            ? requestError.message
+            : 'Could not create admin.',
+      )
     }
   }
 
@@ -906,6 +955,7 @@ function AdminDashboard({
     if (!editingAdminPermissions || adminPermissionDraft.length === 0) return
     setError('')
     setNotice('')
+    setFieldErrors({})
     try {
       await apiRequest(`/api/admin/admins/${editingAdminPermissions._id}/permissions`, {
         method: 'PATCH',
@@ -916,8 +966,13 @@ function AdminDashboard({
       setNotice('Admin permissions updated.')
       await loadData()
     } catch (requestError) {
+      const hasFieldErrors = setRequestFieldErrors(requestError)
       setError(
-        requestError instanceof Error ? requestError.message : 'Could not update permissions.',
+        hasFieldErrors
+          ? 'Please correct the highlighted fields.'
+          : requestError instanceof Error
+            ? requestError.message
+            : 'Could not update permissions.',
       )
     }
   }
@@ -1138,8 +1193,17 @@ function AdminDashboard({
                       maxLength={254}
                       autoComplete="off"
                       value={newAdmin.email}
-                      onChange={(event) => setNewAdmin({ ...newAdmin, email: event.target.value })}
+                      aria-invalid={Boolean(fieldErrors.email)}
+                      onChange={(event) => {
+                        clearFieldError('email')
+                        setNewAdmin({ ...newAdmin, email: event.target.value })
+                      }}
                     />
+                    {fieldErrors.email && (
+                      <small className="field-error" role="alert">
+                        {fieldErrors.email}
+                      </small>
+                    )}
                   </label>
                   <label className="field">
                     <span>Temporary password (minimum 12 characters)</span>
@@ -1150,10 +1214,17 @@ function AdminDashboard({
                       maxLength={72}
                       autoComplete="new-password"
                       value={newAdmin.password}
-                      onChange={(event) =>
+                      aria-invalid={Boolean(fieldErrors.password)}
+                      onChange={(event) => {
+                        clearFieldError('password')
                         setNewAdmin({ ...newAdmin, password: event.target.value })
-                      }
+                      }}
                     />
+                    {fieldErrors.password && (
+                      <small className="field-error" role="alert">
+                        {fieldErrors.password}
+                      </small>
+                    )}
                   </label>
                   <fieldset className="admin-permission-fieldset field-full">
                     <legend className="eyebrow">SECTION PERMISSIONS</legend>
@@ -1164,6 +1235,7 @@ function AdminDashboard({
                             type="checkbox"
                             checked={newAdmin.permissions.includes(permission.key)}
                             onChange={(event) => {
+                              clearFieldError('permissions')
                               const next = event.target.checked
                                 ? [...newAdmin.permissions, permission.key]
                                 : newAdmin.permissions.filter((item) => item !== permission.key)
@@ -1175,6 +1247,11 @@ function AdminDashboard({
                         </label>
                       ))}
                     </div>
+                    {fieldErrors.permissions && (
+                      <small className="field-error" role="alert">
+                        {fieldErrors.permissions}
+                      </small>
+                    )}
                   </fieldset>
                 </div>
                 <div className="admin-editor-actions">
@@ -1217,6 +1294,7 @@ function AdminDashboard({
                           type="checkbox"
                           checked={adminPermissionDraft.includes(permission.key)}
                           onChange={(event) => {
+                            clearFieldError('permissions')
                             const next = event.target.checked
                               ? [...adminPermissionDraft, permission.key]
                               : adminPermissionDraft.filter((item) => item !== permission.key)
@@ -1228,6 +1306,11 @@ function AdminDashboard({
                       </label>
                     ))}
                   </div>
+                  {fieldErrors.permissions && (
+                    <small className="field-error" role="alert">
+                      {fieldErrors.permissions}
+                    </small>
+                  )}
                 </fieldset>
                 <div className="admin-editor-actions">
                   <button
@@ -1292,15 +1375,19 @@ function AdminDashboard({
                           rows={4}
                           required={field.required}
                           value={String(form[field.name] ?? '')}
-                          onChange={(event) =>
+                          aria-invalid={Boolean(fieldErrors[field.name])}
+                          onChange={(event) => {
+                            clearFieldError(field.name)
                             setForm({ ...form, [field.name]: event.target.value })
-                          }
+                          }}
                         />
                       ) : field.type === 'select' ? (
                         <select
                           required={field.required}
+                          aria-invalid={Boolean(fieldErrors[field.name])}
                           value={String(form[field.name] ?? field.options?.[0] ?? '')}
                           onChange={(event) => {
+                            clearFieldError(field.name)
                             if (activeTab === 'projects' && field.name === 'category') {
                               const previousDefault =
                                 form.category === 'Short-form' ? '9:16' : '16:9'
@@ -1337,9 +1424,11 @@ function AdminDashboard({
                         <input
                           type="checkbox"
                           checked={Boolean(form[field.name])}
-                          onChange={(event) =>
+                          aria-invalid={Boolean(fieldErrors[field.name])}
+                          onChange={(event) => {
+                            clearFieldError(field.name)
                             setForm({ ...form, [field.name]: event.target.checked })
-                          }
+                          }}
                         />
                       ) : field.type === 'media' ? (
                         <>
@@ -1351,7 +1440,9 @@ function AdminDashboard({
                                 : 'Paste a media URL or upload a file'
                             }
                             value={String(form[field.name] ?? '')}
+                            aria-invalid={Boolean(fieldErrors[field.name])}
                             onChange={(event) => {
+                              clearFieldError(field.name)
                               const idField = field.name.replace('Url', 'PublicId')
                               setForm({ ...form, [field.name]: event.target.value, [idField]: '' })
                             }}
@@ -1365,6 +1456,7 @@ function AdminDashboard({
                                 : 'video/mp4,video/webm,video/quicktime'
                             }
                             disabled={uploadingField === field.name}
+                            aria-invalid={Boolean(fieldErrors[field.name])}
                             onChange={(event) => void uploadMedia(field, event.target.files?.[0])}
                             aria-label={`Upload ${field.label}`}
                           />
@@ -1382,10 +1474,17 @@ function AdminDashboard({
                           min={field.min}
                           max={field.max}
                           value={String(form[field.name] ?? '')}
-                          onChange={(event) =>
+                          aria-invalid={Boolean(fieldErrors[field.name])}
+                          onChange={(event) => {
+                            clearFieldError(field.name)
                             setForm({ ...form, [field.name]: event.target.value })
-                          }
+                          }}
                         />
+                      )}
+                      {fieldErrors[field.name] && (
+                        <small className="field-error" role="alert">
+                          {fieldErrors[field.name]}
+                        </small>
                       )}
                       {field.helpText && <small>{field.helpText}</small>}
                     </label>

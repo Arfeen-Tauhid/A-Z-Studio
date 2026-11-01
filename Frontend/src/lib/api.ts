@@ -39,6 +39,18 @@ export type PageResult<T> = {
   total: number
 }
 
+export type ApiFieldError = { field: string; message: string }
+
+export class ApiRequestError extends Error {
+  public readonly details: ApiFieldError[]
+
+  constructor(message: string, details: ApiFieldError[] = []) {
+    super(message)
+    this.name = 'ApiRequestError'
+    this.details = details
+  }
+}
+
 const API_URL = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -58,16 +70,25 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
 
   if (response.status === 204) return undefined as T
 
-  let payload: { data?: T; error?: { message?: string } } | null
+  let payload: {
+    data?: T
+    error?: { message?: string; details?: ApiFieldError[] }
+  } | null
   try {
-    payload = (await response.json()) as { data?: T; error?: { message?: string } }
+    payload = (await response.json()) as {
+      data?: T
+      error?: { message?: string; details?: ApiFieldError[] }
+    }
   } catch {
     if (response.ok) throw new Error('The server returned an invalid response.')
     payload = null
   }
 
   if (!response.ok) {
-    throw new Error(payload?.error?.message ?? `Request failed (${response.status})`)
+    throw new ApiRequestError(
+      payload?.error?.message ?? `Request failed (${response.status})`,
+      payload?.error?.details ?? [],
+    )
   }
 
   return (payload?.data ?? payload) as T

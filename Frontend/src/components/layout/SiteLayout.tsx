@@ -1,6 +1,6 @@
 import { ArrowUpRight, Menu, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { apiRequest, type SiteSettings } from '../../lib/api'
 import { preloadRoute } from '../../lib/routePreload'
@@ -29,6 +29,7 @@ export function SiteLayout() {
   const [showIntro, setShowIntro] = useState(false)
   const [settings, setSettings] = useState<SiteSettings>({})
   const [settingsUnavailable, setSettingsUnavailable] = useState(false)
+  const progressRef = useRef<HTMLSpanElement>(null)
 
   const completeIntro = useCallback(() => {
     setShowIntro(false)
@@ -44,6 +45,33 @@ export function SiteLayout() {
     apiRequest<SiteSettings>('/api/public/site-settings')
       .then(setSettings)
       .catch(() => setSettingsUnavailable(true))
+  }, [])
+
+  useEffect(() => {
+    let frame = 0
+    const updateProgress = () => {
+      frame = 0
+      const scrollableHeight =
+        document.documentElement.scrollHeight - document.documentElement.clientHeight
+      const progress = scrollableHeight > 0 ? Math.min(window.scrollY / scrollableHeight, 1) : 0
+      if (progressRef.current) {
+        progressRef.current.style.transform = `scaleX(${progress})`
+      }
+    }
+    const scheduleUpdate = () => {
+      if (frame) return
+      frame = requestAnimationFrame(updateProgress)
+    }
+
+    window.addEventListener('scroll', scheduleUpdate, { passive: true })
+    window.addEventListener('resize', scheduleUpdate)
+    updateProgress()
+
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', scheduleUpdate)
+      window.removeEventListener('resize', scheduleUpdate)
+    }
   }, [])
 
   useEffect(() => {
@@ -79,6 +107,16 @@ export function SiteLayout() {
       '.blog-section',
       '.blog-card',
       '.blog-article',
+      '.blog-author-area',
+      '.services-list-heading',
+      '.filter-list',
+      '.empty-work',
+      '.pagination',
+      '.review-section',
+      '.detail-cta',
+      '.related-projects',
+      '.form-success',
+      '.pricing-note',
     ].join(',')
     const visibleElements = new WeakSet<Element>()
     const observer = new IntersectionObserver(
@@ -147,6 +185,7 @@ export function SiteLayout() {
         Skip to content
       </a>
       <header className="site-header">
+        <span ref={progressRef} className="reading-progress" aria-hidden="true" />
         <div className="header-inner shell">
           <Link
             className="wordmark"

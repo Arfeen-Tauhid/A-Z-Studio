@@ -37,6 +37,33 @@
 * {
   box-sizing: border-box;
 }
+#root {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+}
+.pointer-aura {
+  position: fixed;
+  z-index: -1;
+  top: 0;
+  left: 0;
+  width: min(48vw, 560px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(88, 226, 208, 0.095),
+    rgba(104, 151, 255, 0.035) 35%,
+    transparent 72%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 450ms ease;
+  will-change: transform;
+}
+html.has-pointer-aura .pointer-aura {
+  opacity: 1;
+}
 body {
   margin: 0;
   min-width: 320px;
@@ -94,6 +121,19 @@ button {
   z-index: 10;
   background: rgba(11, 16, 32, 0.84);
   backdrop-filter: blur(18px);
+}
+.reading-progress {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--lime), #90c8ff 58%, var(--violet));
+  box-shadow: 0 0 12px rgba(88, 226, 208, 0.4);
+  transform: scaleX(0);
+  transform-origin: left center;
+  pointer-events: none;
 }
 .header-inner {
   height: 100%;
@@ -2032,6 +2072,56 @@ html.motion-ready #main .motion-reveal.is-visible {
   opacity: 1;
   filter: blur(0);
 }
+html.motion-ready #main .page-intro.motion-reveal,
+html.motion-ready #main .section-topline.motion-reveal,
+html.motion-ready #main .project-story.motion-reveal,
+html.motion-ready #main .inquiry-form.motion-reveal,
+html.motion-ready #main .blog-toolbar.motion-reveal,
+html.motion-ready #main .blog-hero.motion-reveal,
+html.motion-ready #main .blog-section.motion-reveal,
+html.motion-ready #main .blog-article.motion-reveal,
+html.motion-ready #main .page-bottom-cta.motion-reveal,
+html.motion-ready #main .closing-inner.motion-reveal,
+html.motion-ready #main .about-image.motion-reveal,
+html.motion-ready #main .about-columns > div.motion-reveal,
+html.motion-ready #main .review-section.motion-reveal,
+html.motion-ready #main .detail-cta.motion-reveal,
+html.motion-ready #main .related-projects.motion-reveal,
+html.motion-ready #main .services-list-heading.motion-reveal,
+html.motion-ready #main .filter-list.motion-reveal,
+html.motion-ready #main .empty-work.motion-reveal,
+html.motion-ready #main .pagination.motion-reveal,
+html.motion-ready #main .form-success.motion-reveal,
+html.motion-ready #main .pricing-note.motion-reveal {
+  transform: translate3d(0, 18px, 0);
+  transition:
+    opacity 0.7s ease,
+    filter 0.7s ease,
+    transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+html.motion-ready #main .page-intro.motion-reveal.is-visible,
+html.motion-ready #main .section-topline.motion-reveal.is-visible,
+html.motion-ready #main .project-story.motion-reveal.is-visible,
+html.motion-ready #main .inquiry-form.motion-reveal.is-visible,
+html.motion-ready #main .blog-toolbar.motion-reveal.is-visible,
+html.motion-ready #main .blog-hero.motion-reveal.is-visible,
+html.motion-ready #main .blog-section.motion-reveal.is-visible,
+html.motion-ready #main .blog-article.motion-reveal.is-visible,
+html.motion-ready #main .page-bottom-cta.motion-reveal.is-visible,
+html.motion-ready #main .closing-inner.motion-reveal.is-visible,
+html.motion-ready #main .about-image.motion-reveal.is-visible,
+html.motion-ready #main .about-columns > div.motion-reveal.is-visible,
+html.motion-ready #main .review-section.motion-reveal.is-visible,
+html.motion-ready #main .detail-cta.motion-reveal.is-visible,
+html.motion-ready #main .related-projects.motion-reveal.is-visible,
+html.motion-ready #main .services-list-heading.motion-reveal.is-visible,
+html.motion-ready #main .filter-list.motion-reveal.is-visible,
+html.motion-ready #main .empty-work.motion-reveal.is-visible,
+html.motion-ready #main .pagination.motion-reveal.is-visible,
+html.motion-ready #main .form-success.motion-reveal.is-visible,
+html.motion-ready #main .pricing-note.motion-reveal.is-visible {
+  transform: translate3d(0, 0, 0);
+}
 .hero .hero-copy.motion-reveal {
   transform: translateY(12px);
   transition:
@@ -2079,6 +2169,38 @@ html.motion-ready #main .approach .process-grid > .motion-reveal:nth-child(4) {
 .project-grid > .motion-reveal:nth-child(3),
 .services-page-grid > .motion-reveal:nth-child(3) {
   transition-delay: 180ms;
+}
+.project-grid > .motion-reveal,
+.services-page-grid > .motion-reveal,
+.service-principles > .motion-reveal,
+.about-values > .motion-reveal,
+.process-list > .motion-reveal,
+.blog-grid > .motion-reveal {
+  transform: translate3d(0, 16px, 0) scale(0.99);
+  transition:
+    opacity 0.65s ease,
+    filter 0.65s ease,
+    transform 0.65s cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+.project-grid > .motion-reveal.is-visible,
+.services-page-grid > .motion-reveal.is-visible,
+.service-principles > .motion-reveal.is-visible,
+.about-values > .motion-reveal.is-visible,
+.process-list > .motion-reveal.is-visible,
+.blog-grid > .motion-reveal.is-visible {
+  transform: translate3d(0, 0, 0) scale(1);
+}
+.project-grid > .motion-reveal:nth-child(3n + 2),
+.services-page-grid > .motion-reveal:nth-child(3n + 2),
+.blog-grid > .motion-reveal:nth-child(3n + 2) {
+  transition-delay: 90ms, 90ms, 90ms, 0ms, 0ms;
+}
+.project-grid > .motion-reveal:nth-child(3n),
+.services-page-grid > .motion-reveal:nth-child(3n),
+.blog-grid > .motion-reveal:nth-child(3n) {
+  transition-delay: 180ms, 180ms, 180ms, 0ms, 0ms;
 }
 .service-principles > .motion-reveal:nth-child(2),
 .about-values > .motion-reveal:nth-child(2),
@@ -3900,6 +4022,11 @@ html.motion-ready #main .approach .process-grid > .motion-reveal:nth-child(4) {
     transition-duration: 0.01ms !important;
   }
 }
+@media (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .pointer-aura {
+    display: none;
+  }
+}
 
 .client-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3996,6 +4123,23 @@ html.motion-ready #main .testimonial-grid > .testimonial-card.motion-reveal:nth-
   transition-delay: 160ms, 160ms, 160ms, 0ms, 0ms;
 }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  html.motion-ready #main .services-page-grid > .service-detail.motion-reveal.is-visible:hover {
+    transform: translateY(-3px) scale(1);
+    transition-delay: 0ms;
+  }
+  html.motion-ready #main .blog-grid > .blog-card.motion-reveal.is-visible:hover {
+    transform: translateY(-4px) scale(1);
+    transition-delay: 0ms;
+  }
+  html.motion-ready #main .service-principle.motion-reveal.is-visible:hover,
+  html.motion-ready #main .about-values article.motion-reveal.is-visible:hover {
+    transform: translateY(-4px) scale(1);
+    transition-delay: 0ms;
+  }
+  html.motion-ready #main .process-list-item.motion-reveal.is-visible:hover {
+    transform: translateX(5px) scale(1);
+    transition-delay: 0ms;
+  }
   .client-card:hover,
   .testimonial-card:hover {
     transform: translateY(-4px);

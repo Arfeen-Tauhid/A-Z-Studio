@@ -80,6 +80,7 @@ export function SiteLayout() {
     const selector = [
       '.page-intro',
       '.hero .hero-copy',
+      '.section-heading h2',
       '.section-topline',
       '.services-inner > *',
       '.service-row',

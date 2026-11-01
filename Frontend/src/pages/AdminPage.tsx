@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { apiRequest, ApiRequestError, type PageResult } from '../lib/api'
 import { sendStudioInquiryNotification } from '../lib/emailjs'
+import { youtubeVideoId } from '../lib/youtube'
 
 type ResourceName =
   'projects' | 'clients' | 'testimonials' | 'services' | 'site-settings' | 'ratings'
@@ -86,7 +87,7 @@ type CloudinaryResult = { public_id?: string; error?: { message?: string } }
 type VerifiedMedia = { secureUrl: string; publicId: string }
 
 const uploadedVideoHelpText =
-  'Uploaded audio is preserved and optimized for browser playback. Make sure the source file includes an audio track; previews start muted until visitors turn sound on.'
+  'Upload MP4, WebM, or MOV from your device, or paste a YouTube link. Uploaded audio is preserved and optimized for browser playback; previews start muted until visitors turn sound on.'
 
 const resourceConfig: Record<
   ResourceName,
@@ -145,6 +146,7 @@ const resourceConfig: Record<
         label: 'Thumbnail image',
         type: 'media',
         mediaResource: 'image',
+        helpText: 'YouTube video links provide their own thumbnail automatically.',
       },
       {
         name: 'thumbnailPublicId',
@@ -153,10 +155,10 @@ const resourceConfig: Record<
       },
       {
         name: 'videoUrl',
-        label: 'Video file',
+        label: 'Video link or file',
         type: 'media',
         mediaResource: 'video',
-        helpText: `${uploadedVideoHelpText} Upload both the video and a thumbnail image.`,
+        helpText: `${uploadedVideoHelpText} Upload a thumbnail too when using a video file.`,
       },
       { name: 'videoPublicId', label: 'Video storage ID', hidden: true },
       {
@@ -181,7 +183,7 @@ const resourceConfig: Record<
       { name: 'name', label: 'Client or project name' },
       {
         name: 'videoUrl',
-        label: 'Client video',
+        label: 'Client video link or file',
         type: 'media',
         mediaResource: 'video',
         helpText: uploadedVideoHelpText,
@@ -273,7 +275,7 @@ const resourceConfig: Record<
       { name: 'linkedinUrl', label: 'LinkedIn URL', type: 'url' },
       {
         name: 'showreelUrl',
-        label: 'Homepage showreel',
+        label: 'Homepage showreel link or file',
         type: 'media',
         mediaResource: 'video',
         helpText: uploadedVideoHelpText,
@@ -883,11 +885,16 @@ function AdminDashboard({
     if (activeTab === 'admins' || activeTab === 'create-admin' || activeTab === 'activity') return
     const payload: Record<string, unknown> = { ...form }
     if (activeTab === 'projects') {
-      if (!form.thumbnailUrl || !form.videoUrl || !form.thumbnailPublicId || !form.videoPublicId) {
+      const youtubeVideo = youtubeVideoId(String(form.videoUrl ?? ''))
+      const hasUploadedVideo = Boolean(form.videoUrl && form.videoPublicId)
+      const hasValidVideoSource = Boolean(youtubeVideo || hasUploadedVideo)
+      const hasUploadedThumbnail = Boolean(form.thumbnailUrl && form.thumbnailPublicId)
+      if (!hasValidVideoSource || (!youtubeVideo && !hasUploadedThumbnail)) {
         const missingMedia: Record<string, string> = {}
-        if (!form.thumbnailUrl || !form.thumbnailPublicId)
-          missingMedia.thumbnailUrl = 'Upload a thumbnail image.'
-        if (!form.videoUrl || !form.videoPublicId) missingMedia.videoUrl = 'Upload a video file.'
+        if (!hasValidVideoSource)
+          missingMedia.videoUrl = 'Paste a valid YouTube link or upload a video file.'
+        if (!youtubeVideo && !hasUploadedThumbnail)
+          missingMedia.thumbnailUrl = 'Upload a thumbnail image for the video file.'
         setFieldErrors(missingMedia)
         setError('Please correct the highlighted fields.')
         return
@@ -1863,7 +1870,7 @@ function AdminDashboard({
                             type="url"
                             placeholder={
                               field.mediaResource === 'video'
-                                ? 'Upload a video file'
+                                ? 'Paste a YouTube/video link or upload from your device'
                                 : 'Paste a media URL or upload a file'
                             }
                             value={String(form[field.name] ?? '')}
@@ -1873,7 +1880,6 @@ function AdminDashboard({
                               const idField = field.name.replace('Url', 'PublicId')
                               setForm({ ...form, [field.name]: event.target.value, [idField]: '' })
                             }}
-                            readOnly={activeTab === 'projects' || field.mediaResource === 'video'}
                           />
                           <input
                             type="file"
@@ -1889,7 +1895,7 @@ function AdminDashboard({
                           />
                           {activeTab === 'projects' && field.name === 'videoUrl' && (
                             <small>
-                              MP4, WebM, or MOV. Upload both this video and the thumbnail image.
+                              Upload MP4, WebM, or MOV from your device, or paste a YouTube link.
                             </small>
                           )}
                           {uploadingField === field.name && <small>Uploading securely…</small>}

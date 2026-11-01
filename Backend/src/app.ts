@@ -202,12 +202,21 @@ app.get('/api/public/testimonials', async (_request, response) => {
 })
 
 async function publicRatingSummary() {
-  const [result] = await RatingModel.aggregate([
-    { $group: { _id: null, count: { $sum: 1 }, average: { $avg: '$rating' } } },
+  const [results, recent] = await Promise.all([
+    RatingModel.aggregate<{ count: number; average: number }>([
+      { $group: { _id: null, count: { $sum: 1 }, average: { $avg: '$rating' } } },
+    ]),
+    RatingModel.find()
+      .select('rating name socialPlatform feedback createdAt')
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(5)
+      .lean(),
   ])
+  const result = results[0]
   return {
     count: result?.count ?? 0,
     average: result?.average ?? 0,
+    recent,
   }
 }
 

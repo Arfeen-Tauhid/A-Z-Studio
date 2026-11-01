@@ -87,6 +87,7 @@ const ratingSchema = new Schema(
     name: { type: String, required: true, trim: true, maxlength: 160 },
     socialPlatform: { type: String, required: true, trim: true, maxlength: 40 },
     socialHandle: { type: String, required: true, trim: true, maxlength: 120 },
+    feedback: { type: String, trim: true, maxlength: 500 },
   },
   { timestamps: true },
 )

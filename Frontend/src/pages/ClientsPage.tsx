@@ -24,6 +24,15 @@ type Testimonial = {
   rating: number
 }
 
+type RecentRating = {
+  _id: string
+  rating: number
+  name: string
+  socialPlatform: string
+  feedback?: string
+  createdAt: string
+}
+
 export function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -31,11 +40,13 @@ export function ClientsPage() {
   const [testimonialState, setTestimonialState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [ratingAverage, setRatingAverage] = useState(0)
   const [ratingCount, setRatingCount] = useState(0)
+  const [recentRatings, setRecentRatings] = useState<RecentRating[]>([])
   const [rating, setRating] = useState(0)
   const [reviewerName, setReviewerName] = useState('')
   const [socialPlatform, setSocialPlatform] = useState('')
   const [customSocialPlatform, setCustomSocialPlatform] = useState('')
   const [socialHandle, setSocialHandle] = useState('')
+  const [ratingFeedback, setRatingFeedback] = useState('')
   const [reviewError, setReviewError] = useState('')
   const [reviewNotice, setReviewNotice] = useState('')
   const [submittingRating, setSubmittingRating] = useState(false)
@@ -52,12 +63,13 @@ export function ClientsPage() {
   useEffect(() => {
     Promise.all([
       apiRequest<Client[]>('/api/public/clients'),
-      apiRequest<{ average: number; count: number }>('/api/public/ratings'),
+      apiRequest<{ average: number; count: number; recent: RecentRating[] }>('/api/public/ratings'),
     ])
       .then(([clientItems, ratingSummary]) => {
         setClients(clientItems)
         setRatingAverage(ratingSummary.average)
         setRatingCount(ratingSummary.count)
+        setRecentRatings(ratingSummary.recent)
         setState('ready')
       })
       .catch(() => setState('error'))
@@ -69,27 +81,31 @@ export function ClientsPage() {
     setReviewNotice('')
     setSubmittingRating(true)
     try {
-      const result = await apiRequest<{ average: number; count: number; message: string }>(
-        '/api/public/ratings',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            rating,
-            name: reviewerName,
-            socialPlatform:
-              socialPlatform === 'Other' ? customSocialPlatform.trim() : socialPlatform,
-            socialHandle,
-          }),
-        },
-      )
+      const result = await apiRequest<{
+        average: number
+        count: number
+        recent: RecentRating[]
+        message: string
+      }>('/api/public/ratings', {
+        method: 'POST',
+        body: JSON.stringify({
+          rating,
+          name: reviewerName,
+          socialPlatform: socialPlatform === 'Other' ? customSocialPlatform.trim() : socialPlatform,
+          socialHandle,
+          feedback: ratingFeedback,
+        }),
+      })
       setRatingAverage(result.average)
       setRatingCount(result.count)
+      setRecentRatings(result.recent)
       setReviewNotice(result.message)
       setRating(0)
       setReviewerName('')
       setSocialPlatform('')
       setCustomSocialPlatform('')
       setSocialHandle('')
+      setRatingFeedback('')
     } catch (error) {
       setReviewError(error instanceof Error ? error.message : 'Your rating could not be sent.')
     } finally {
@@ -207,8 +223,8 @@ export function ClientsPage() {
           <span className="eyebrow">YOUR EXPERIENCE MATTERS</span>
           <h2 id="review-heading">How was working with us?</h2>
           <p>
-            Add your name and social profile so we can verify your rating. Your details won’t be
-            displayed publicly.
+            Share your name, social platform, rating, and optional feedback. Your name, platform,
+            rating, and feedback will appear publicly; your platform username stays private.
           </p>
           <div className="rating-summary">
             <span
@@ -230,6 +246,34 @@ export function ClientsPage() {
               {ratingCount} {ratingCount === 1 ? 'rating' : 'ratings'}
             </small>
           </div>
+          {recentRatings.length > 0 && (
+            <section className="recent-ratings" aria-labelledby="recent-ratings-heading">
+              <h3 id="recent-ratings-heading">5 most recent ratings</h3>
+              <div className="recent-rating-list">
+                {recentRatings.map((item) => (
+                  <article className="recent-rating-card" key={item._id}>
+                    <div className="recent-rating-heading">
+                      <strong>{item.name}</strong>
+                      <span>{item.socialPlatform}</span>
+                    </div>
+                    <div
+                      className="recent-rating-stars"
+                      aria-label={`${item.rating} out of 5 stars`}
+                    >
+                      {Array.from({ length: 5 }, (_, index) => (
+                        <Star
+                          key={index}
+                          size={13}
+                          fill={index < item.rating ? 'currentColor' : 'none'}
+                        />
+                      ))}
+                    </div>
+                    {item.feedback && <p>{item.feedback}</p>}
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
         <form className="review-form" onSubmit={submitRating}>
           <fieldset className="rating-field">
@@ -264,6 +308,17 @@ export function ClientsPage() {
               value={reviewerName}
               onChange={(event) => setReviewerName(event.target.value)}
             />
+          </label>
+          <label className="field">
+            <span>Feedback (optional)</span>
+            <textarea
+              rows={4}
+              maxLength={500}
+              placeholder="Share a few words about your experience"
+              value={ratingFeedback}
+              onChange={(event) => setRatingFeedback(event.target.value)}
+            />
+            <small>Your feedback will be shown publicly alongside your rating.</small>
           </label>
           <label className="field">
             <span>

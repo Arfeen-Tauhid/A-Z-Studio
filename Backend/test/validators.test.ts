@@ -317,13 +317,25 @@ describe('inquiry validation', () => {
           name: ' Alex Example ',
           socialPlatform: ' YouTube ',
           socialHandle: ' @alexcreates ',
+          feedback: '  Great experience.  ',
         }),
         {
           rating: 5,
           name: 'Alex Example',
           socialPlatform: 'YouTube',
           socialHandle: '@alexcreates',
+          feedback: 'Great experience.',
         },
+      )
+      assert.equal(
+        publicRatingSchema.safeParse({
+          rating: 5,
+          name: 'Alex Example',
+          socialPlatform: 'YouTube',
+          socialHandle: '@alexcreates',
+          feedback: 'x'.repeat(501),
+        }).success,
+        false,
       )
       assert.equal(publicRatingSchema.safeParse({ rating: 5 }).success, false)
     })

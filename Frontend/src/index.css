@@ -2773,6 +2773,48 @@ html.motion-ready #main .motion-reveal.is-visible {
   color: var(--muted);
   font-size: 10px;
 }
+.recent-ratings {
+  margin-top: 28px;
+}
+.recent-ratings h3 {
+  margin: 0 0 12px;
+  color: var(--ivory);
+  font: 500 17px var(--font-display);
+}
+.recent-rating-list {
+  display: grid;
+  gap: 9px;
+}
+.recent-rating-card {
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: rgba(11, 16, 32, 0.48);
+}
+.recent-rating-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 10px;
+}
+.recent-rating-heading strong {
+  color: #eceee8;
+}
+.recent-rating-heading span {
+  color: var(--muted);
+}
+.recent-rating-stars {
+  display: flex;
+  gap: 3px;
+  margin-top: 8px;
+  color: var(--lime);
+}
+.recent-rating-card p {
+  margin: 9px 0 0;
+  color: #c0cbe0;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
 .inquiry-tracker-section {
   display: grid;
   grid-template-columns: 1fr minmax(260px, 0.75fr);

@@ -71,6 +71,7 @@ export const publicRatingSchema = z.object({
   name: z.string().trim().min(2).max(160),
   socialPlatform: z.string().trim().min(1).max(40),
   socialHandle: z.string().trim().min(1).max(120),
+  feedback: optionalText(500),
 })
 
 export const adminInquirySchema = z.object({

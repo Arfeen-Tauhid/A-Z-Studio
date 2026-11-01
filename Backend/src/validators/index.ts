@@ -7,13 +7,28 @@ const webUrl = z.url().refine((value) => {
 const url = z.union([webUrl, z.literal('')]).optional()
 const optionalText = (max: number) => z.string().trim().max(max).optional()
 
-export const loginSchema = z.object({
-  email: z.email().max(254),
-  password: z
-    .string()
-    .min(1)
-    .refine((value) => Buffer.byteLength(value, 'utf8') <= 72, 'Password is too long.'),
-})
+export const loginSchema = z
+  .object({
+    identifier: z.string().trim().min(1).max(254).optional(),
+    email: z.email().max(254).optional(),
+    password: z
+      .string()
+      .min(1)
+      .refine((value) => Buffer.byteLength(value, 'utf8') <= 72, 'Password is too long.'),
+  })
+  .refine(
+    ({ identifier, email }) =>
+      Boolean(
+        (identifier &&
+          (/^AZ\d{4}$/i.test(identifier) || z.email().safeParse(identifier).success)) ||
+        email,
+      ),
+    { path: ['identifier'], message: 'Enter a valid email address or admin number.' },
+  )
+  .transform(({ identifier, email, password }) => ({
+    identifier: identifier ?? email ?? '',
+    password,
+  }))
 
 const adminPermissionSchema = z.enum([
   'projects',
@@ -23,13 +38,18 @@ const adminPermissionSchema = z.enum([
   'site-settings',
   'inquiries',
   'ratings',
+  'create-admins',
+  'activity',
+  'blog-writing-requests',
+  'blog-writers',
+  'blog-post-review',
 ])
 
 export const adminPermissionsSchema = z.object({
   permissions: z
     .array(adminPermissionSchema)
     .min(1, 'Select at least one permission.')
-    .max(7)
+    .max(12)
     .refine((permissions) => new Set(permissions).size === permissions.length, {
       message: 'Permissions must not be duplicated.',
     }),
@@ -45,6 +65,82 @@ export const createAdminSchema = z.object({
       'Password cannot exceed 72 UTF-8 bytes.',
     ),
   permissions: adminPermissionsSchema.shape.permissions,
+})
+
+export const adminLoginHoldSchema = z.object({
+  loginHeld: z.boolean(),
+})
+
+export const blogAuthorLoginSchema = z
+  .object({
+    identifier: z.string().trim().min(1).max(254),
+    password: z
+      .string()
+      .min(1)
+      .refine((value) => Buffer.byteLength(value, 'utf8') <= 72, 'Password is too long.'),
+  })
+  .refine(
+    ({ identifier }) => /^BLOG\d{4}$/i.test(identifier) || z.email().safeParse(identifier).success,
+    {
+      path: ['identifier'],
+      message: 'Enter a valid email address or BLOG ID.',
+    },
+  )
+  .transform(({ identifier, password }) => ({
+    identifier: /^BLOG\d{4}$/i.test(identifier)
+      ? identifier.toUpperCase()
+      : identifier.toLowerCase(),
+    password,
+  }))
+
+export const blogWritingRequestSchema = z.object({
+  name: z.string().trim().min(2).max(100),
+  socialPlatform: z.string().trim().min(2).max(80),
+  yearsExperience: z.coerce.number().int().min(0).max(80),
+  motivation: z.string().trim().min(20).max(3000),
+  email: z.email().max(254),
+  contactNumber: z
+    .string()
+    .trim()
+    .max(40)
+    .regex(/^\+[1-9][\d\s().-]{6,24}$/, 'Include the country code, for example +1 555 123 4567.')
+    .refine(
+      (value) => value.replace(/\D/g, '').length >= 8 && value.replace(/\D/g, '').length <= 15,
+      {
+        message: 'Enter a valid phone number with country code.',
+      },
+    )
+    .transform((value) => `+${value.slice(1).replace(/\D/g, '')}`),
+})
+
+export const createBlogAuthorSchema = z.object({
+  requestId: z.string().trim().min(1).max(100),
+  password: z
+    .string()
+    .min(12, 'Use at least 12 characters for the blog author password.')
+    .refine(
+      (value) => Buffer.byteLength(value, 'utf8') <= 72,
+      'Password cannot exceed 72 UTF-8 bytes.',
+    ),
+})
+
+export const blogLoginHoldSchema = z.object({
+  loginHeld: z.boolean(),
+})
+
+export const blogPostSchema = z.object({
+  title: z.string().trim().min(5).max(180),
+  category: z.string().trim().min(2).max(80),
+  excerpt: z.string().trim().min(20).max(400),
+  content: z.string().trim().min(100).max(30000),
+})
+
+export const blogReviewSchema = z.object({
+  status: z.enum(['published', 'declined']),
+})
+
+export const blogWritingRequestReviewSchema = z.object({
+  status: z.enum(['approved', 'declined']),
 })
 
 export const inquiryStatusSchema = z.object({

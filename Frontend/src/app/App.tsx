@@ -5,6 +5,9 @@ import { SiteLayout } from '../components/layout/SiteLayout'
 const AboutPage = lazy(() =>
   import('../pages/AboutPage').then((module) => ({ default: module.AboutPage })),
 )
+const BlogsPage = lazy(() =>
+  import('../pages/BlogsPage').then((module) => ({ default: module.BlogsPage })),
+)
 const ClientsPage = lazy(() =>
   import('../pages/ClientsPage').then((module) => ({ default: module.ClientsPage })),
 )
@@ -49,6 +52,8 @@ export function App() {
         <Route path="process" element={<ProcessPage />} />
         <Route path="pricing" element={<PricingPage />} />
         <Route path="contact" element={<ContactPage />} />
+        <Route path="blogs" element={<BlogsPage />} />
+        <Route path="blogs/:slug" element={<BlogsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
       <Route

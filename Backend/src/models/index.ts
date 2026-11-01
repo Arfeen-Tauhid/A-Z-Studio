@@ -133,9 +133,10 @@ inquirySchema.index({ inquiryNumber: 1 }, { unique: true, sparse: true })
 
 const adminSchema = new Schema(
   {
-    adminNumber: { type: Number, unique: true, sparse: true, index: true },
+    adminNumber: { type: String, unique: true, sparse: true, index: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true, select: false },
+    loginHeld: { type: Boolean, default: false },
     role: { type: String, enum: ['owner', 'full', 'limited', 'custom'], default: 'full' },
     permissions: {
       type: [
@@ -149,6 +150,11 @@ const adminSchema = new Schema(
             'site-settings',
             'inquiries',
             'ratings',
+            'create-admins',
+            'activity',
+            'blog-writing-requests',
+            'blog-writers',
+            'blog-post-review',
           ],
         },
       ],
@@ -165,11 +171,20 @@ const counterSchema = new Schema({
 
 const adminActivitySchema = new Schema(
   {
-    actorAdminNumber: { type: Number, required: true, index: true },
+    actorAdminNumber: { type: String, required: true, index: true },
     actorEmail: { type: String, required: true, trim: true, maxlength: 254 },
     action: {
       type: String,
-      enum: ['create', 'update', 'delete', 'upload', 'permissions', 'revoke'],
+      enum: [
+        'create',
+        'update',
+        'delete',
+        'upload',
+        'permissions',
+        'revoke',
+        'login-hold',
+        'login-release',
+      ],
       required: true,
     },
     resource: { type: String, required: true, trim: true, maxlength: 80 },
@@ -180,6 +195,78 @@ const adminActivitySchema = new Schema(
   { timestamps: { createdAt: true, updatedAt: false } },
 )
 adminActivitySchema.index({ createdAt: -1 })
+
+const blogWritingRequestSchema = new Schema(
+  {
+    name: { type: String, required: true, trim: true, maxlength: 100 },
+    socialPlatform: { type: String, required: true, trim: true, maxlength: 80 },
+    yearsExperience: { type: Number, required: true, min: 0, max: 80 },
+    motivation: { type: String, required: true, trim: true, maxlength: 3000 },
+    email: { type: String, required: true, lowercase: true, trim: true, maxlength: 254 },
+    contactNumber: { type: String, required: true, trim: true, maxlength: 40 },
+    status: {
+      type: String,
+      enum: ['pending', 'approved', 'declined', 'account_created'],
+      default: 'pending',
+      index: true,
+    },
+    reviewedBy: { type: String, trim: true, maxlength: 160 },
+    reviewedAt: { type: Date },
+  },
+  { timestamps: true },
+)
+blogWritingRequestSchema.index({ createdAt: -1 })
+
+const blogAuthorSchema = new Schema(
+  {
+    employeeId: { type: String, required: true, unique: true, index: true },
+    requestId: {
+      type: Schema.Types.ObjectId,
+      ref: 'BlogWritingRequest',
+      unique: true,
+      sparse: true,
+    },
+    name: { type: String, required: true, trim: true, maxlength: 100 },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+      maxlength: 254,
+    },
+    passwordHash: { type: String, required: true, select: false },
+    loginHeld: { type: Boolean, default: false },
+  },
+  { timestamps: true },
+)
+
+const blogPostSchema = new Schema(
+  {
+    authorId: { type: Schema.Types.ObjectId, ref: 'BlogAuthor', required: true, index: true },
+    authorEmployeeId: { type: String, trim: true, match: /^BLOG\d{4}$/ },
+    authorName: { type: String, required: true, trim: true, maxlength: 100 },
+    title: { type: String, required: true, trim: true, maxlength: 180 },
+    slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    category: { type: String, required: true, trim: true, maxlength: 80 },
+    excerpt: { type: String, required: true, trim: true, maxlength: 400 },
+    content: { type: String, required: true, trim: true, maxlength: 30000 },
+    viewCount: { type: Number, default: 0, min: 0 },
+    likeCount: { type: Number, default: 0, min: 0 },
+    status: {
+      type: String,
+      enum: ['pending', 'published', 'declined'],
+      default: 'pending',
+      index: true,
+    },
+    reviewedBy: { type: String, trim: true, maxlength: 160 },
+    reviewedAt: { type: Date },
+    publishedAt: { type: Date },
+  },
+  { timestamps: true },
+)
+blogPostSchema.index({ status: 1, publishedAt: -1 })
+blogPostSchema.index({ authorId: 1, createdAt: -1 })
 
 const siteSettingsSchema = new Schema(
   {
@@ -210,4 +297,7 @@ export const InquiryModel = model('Inquiry', inquirySchema)
 export const AdminModel = model('Admin', adminSchema)
 export const CounterModel = model('Counter', counterSchema)
 export const AdminActivityModel = model('AdminActivity', adminActivitySchema)
+export const BlogWritingRequestModel = model('BlogWritingRequest', blogWritingRequestSchema)
+export const BlogAuthorModel = model('BlogAuthor', blogAuthorSchema)
+export const BlogPostModel = model('BlogPost', blogPostSchema)
 export const SiteSettingsModel = model('SiteSettings', siteSettingsSchema)

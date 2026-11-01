@@ -10,7 +10,7 @@ declare global {
   namespace Express {
     interface Request {
       adminId?: string
-      adminNumber?: number
+      adminNumber?: string
       adminEmail?: string
       adminRole?: AdminRole
       adminPermissions?: string[]
@@ -45,9 +45,15 @@ export const requireAdmin: RequestHandler = async (request, _response, next) => 
     return
   }
 
-  const admin = await AdminModel.findById(payload.sub).select('role permissions adminNumber email')
+  const admin = await AdminModel.findById(payload.sub).select(
+    'role permissions adminNumber email loginHeld',
+  )
   if (!admin) {
     next(new HttpError(401, 'Admin account not found.'))
+    return
+  }
+  if (admin.loginHeld) {
+    next(new HttpError(403, 'This admin login is on hold. Contact the account owner.'))
     return
   }
   const adminNumber = await ensureAdminNumber(admin.id, admin.adminNumber)
@@ -57,6 +63,16 @@ export const requireAdmin: RequestHandler = async (request, _response, next) => 
   request.adminRole = admin.role
   request.adminPermissions = admin.permissions ?? []
   next()
+}
+
+export const requireAdminPermission = (permission: string): RequestHandler => {
+  return (request, _response, next) => {
+    if (request.adminRole === 'owner' || request.adminPermissions?.includes(permission)) {
+      next()
+      return
+    }
+    next(new HttpError(403, 'You do not have permission to perform this action.'))
+  }
 }
 
 export const requireOwner: RequestHandler = (request, _response, next) => {

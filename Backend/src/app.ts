@@ -13,6 +13,9 @@ import { env } from './config/env.js'
 import {
   AdminModel,
   AdminActivityModel,
+  BlogAuthorModel,
+  BlogPostModel,
+  BlogWritingRequestModel,
   ClientModel,
   InquiryModel,
   ProjectModel,
@@ -22,15 +25,29 @@ import {
   TestimonialModel,
 } from './models/index.js'
 import { errorHandler, HttpError, notFound } from './middleware/errors.js'
-import { requireAdmin, requireAdminResourceAccess, requireOwner } from './middleware/auth.js'
+import {
+  requireAdmin,
+  requireAdminPermission,
+  requireAdminResourceAccess,
+  requireOwner,
+} from './middleware/auth.js'
+import { requireBlogAuthor } from './middleware/blogAuth.js'
 import { getMediaPolicyError, mediaLimits } from './services/mediaPolicy.js'
 import { ensureAdminNumber, nextAdminNumber, recordAdminActivity } from './services/adminAudit.js'
 import { projectSlugFromTitle, youtubeThumbnailUrl } from './services/youtube.js'
 import {
   adminInquirySchema,
   adminInquiryUpdateSchema,
+  adminLoginHoldSchema,
   adminPermissionsSchema,
+  blogAuthorLoginSchema,
+  blogLoginHoldSchema,
+  blogPostSchema,
+  blogReviewSchema,
+  blogWritingRequestSchema,
+  blogWritingRequestReviewSchema,
   clientSchema,
+  createBlogAuthorSchema,
   createAdminSchema,
   inquiryStatusSchema,
   inquirySchema,
@@ -50,6 +67,8 @@ const uploadedMediaSchema = z.object({
   publicId: z.string().trim().min(1).max(300),
 })
 const dummyPasswordHash = bcrypt.hashSync('az-studios-invalid-password', 12)
+const dummyBlogPasswordHash = bcrypt.hashSync('az-studios-invalid-blog-password', 12)
+const cookieSameSite = env.COOKIE_SECURE ? 'none' : 'strict'
 app.disable('x-powered-by')
 if (env.TRUST_PROXY > 0) app.set('trust proxy', env.TRUST_PROXY)
 app.use(helmet())
@@ -97,8 +116,28 @@ const loginLimiter = makeRateLimiter(15 * 60 * 1000, 10)
 const inquiryLimiter = makeRateLimiter(60 * 60 * 1000, 5)
 const inquiryLookupLimiter = makeRateLimiter(15 * 60 * 1000, 10)
 const ratingLimiter = makeRateLimiter(60 * 60 * 1000, 3)
+const blogRequestLimiter = makeRateLimiter(60 * 60 * 1000, 3)
+const blogLoginLimiter = makeRateLimiter(15 * 60 * 1000, 10)
+const blogEngagementLimiter = makeRateLimiter(60 * 1000, 40)
 const apiLimiter = makeRateLimiter(15 * 60 * 1000, 300)
 app.use('/api', apiLimiter)
+app.use(
+  [
+    '/api/public/projects',
+    '/api/public/services',
+    '/api/public/clients',
+    '/api/public/testimonials',
+    '/api/public/ratings',
+    '/api/public/site-settings',
+    '/api/public/blogs',
+  ],
+  (request, response, next) => {
+    if (request.method === 'GET') {
+      response.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
+    }
+    next()
+  },
+)
 
 function sendData<T>(response: Response, data: T, status = 200) {
   response.status(status).json({ data })
@@ -234,6 +273,185 @@ app.get('/api/public/site-settings', async (_request, response) => {
   sendData(response, item ?? {})
 })
 
+app.get('/api/public/blogs', async (request, response) => {
+  const { page, limit, skip } = pagination(request.query)
+  const sort = request.query.sort ?? 'recent'
+  if (!['recent', 'views', 'likes'].includes(String(sort))) {
+    throw new HttpError(400, 'Choose recent, views, or likes blog sorting.')
+  }
+  const authorEmployeeId =
+    typeof request.query.author === 'string' ? request.query.author.toUpperCase() : undefined
+  if (authorEmployeeId && !/^BLOG\d{4}$/.test(authorEmployeeId)) {
+    throw new HttpError(400, 'Enter a valid BLOG employee ID, such as BLOG1234.')
+  }
+  const author = authorEmployeeId
+    ? await BlogAuthorModel.findOne({ employeeId: authorEmployeeId }).select('_id').lean()
+    : null
+  if (authorEmployeeId && !author)
+    throw new HttpError(404, 'No blog writer was found with that ID.')
+  const filter = {
+    status: 'published' as const,
+    ...(author ? { authorId: author._id } : {}),
+  }
+  const sortBy: Record<string, 1 | -1> =
+    sort === 'views'
+      ? { viewCount: -1 as const, publishedAt: -1 as const, _id: -1 as const }
+      : sort === 'likes'
+        ? { likeCount: -1 as const, publishedAt: -1 as const, _id: -1 as const }
+        : { publishedAt: -1 as const, _id: -1 as const }
+  const [items, total] = await Promise.all([
+    BlogPostModel.find(filter)
+      .select(
+        'title slug category excerpt authorName authorEmployeeId publishedAt createdAt viewCount likeCount',
+      )
+      .sort(sortBy)
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    BlogPostModel.countDocuments(filter),
+  ])
+  sendData(response, { items, page, pages: Math.ceil(total / limit), total })
+})
+
+app.get('/api/public/blogs/:slug', async (request, response) => {
+  const post = await BlogPostModel.findOne({ slug: request.params.slug, status: 'published' })
+    .select('-authorId -reviewedBy -reviewedAt -__v')
+    .lean()
+  if (!post) throw new HttpError(404, 'Blog post not found.')
+  sendData(response, post)
+})
+
+app.post('/api/public/blogs/:slug/view', blogEngagementLimiter, async (request, response) => {
+  const post = await BlogPostModel.findOneAndUpdate(
+    { slug: request.params.slug, status: 'published' },
+    { $inc: { viewCount: 1 } },
+    { new: true, projection: 'viewCount' },
+  ).lean()
+  if (!post) throw new HttpError(404, 'Blog post not found.')
+  sendData(response, { viewCount: post.viewCount })
+})
+
+app.post('/api/public/blogs/:slug/like', blogEngagementLimiter, async (request, response) => {
+  const post = await BlogPostModel.findOneAndUpdate(
+    { slug: request.params.slug, status: 'published' },
+    { $inc: { likeCount: 1 } },
+    { new: true, projection: 'likeCount' },
+  ).lean()
+  if (!post) throw new HttpError(404, 'Blog post not found.')
+  sendData(response, { likeCount: post.likeCount })
+})
+
+app.post('/api/public/blog-writing-requests', blogRequestLimiter, async (request, response) => {
+  const input = blogWritingRequestSchema.parse(request.body)
+  const email = input.email.toLowerCase()
+  if (await BlogAuthorModel.exists({ email })) {
+    throw new HttpError(409, 'A blog author account already exists for this email.')
+  }
+  const existingRequest = await BlogWritingRequestModel.findOne({
+    email,
+    status: { $in: ['pending', 'approved'] },
+  }).lean()
+  if (existingRequest) {
+    throw new HttpError(409, 'A writing request for this email is already being reviewed.')
+  }
+  await BlogWritingRequestModel.create({ ...input, email })
+  sendData(response, { message: 'Your request has been sent for review.' }, 201)
+})
+
+app.post('/api/blog/auth/login', blogLoginLimiter, async (request, response) => {
+  const { identifier, password } = blogAuthorLoginSchema.parse(request.body)
+  const author = await BlogAuthorModel.findOne(
+    /^BLOG\d{4}$/i.test(identifier)
+      ? { employeeId: identifier.toUpperCase() }
+      : { email: identifier.toLowerCase() },
+  ).select('+passwordHash')
+  const passwordIsValid = await bcrypt.compare(
+    password,
+    author?.passwordHash ?? dummyBlogPasswordHash,
+  )
+  if (!author || !passwordIsValid)
+    throw new HttpError(401, 'Email or BLOG ID or password is incorrect.')
+  if (author.loginHeld) throw new HttpError(403, 'This blog author login is on hold.')
+
+  const token = jwt.sign({ kind: 'blog-author' }, env.JWT_SECRET, {
+    subject: author.id,
+    expiresIn: '8h',
+  })
+  response.cookie('az_blog', token, {
+    httpOnly: true,
+    secure: env.COOKIE_SECURE,
+    sameSite: cookieSameSite,
+    maxAge: 8 * 60 * 60 * 1000,
+    path: '/',
+  })
+  sendData(response, {
+    employeeId: author.employeeId,
+    email: author.email,
+    name: author.name,
+  })
+})
+
+app.post('/api/blog/auth/logout', (_request, response) => {
+  response.clearCookie('az_blog', {
+    httpOnly: true,
+    secure: env.COOKIE_SECURE,
+    sameSite: cookieSameSite,
+    path: '/',
+  })
+  sendData(response, { message: 'Logged out.' })
+})
+
+app.get('/api/blog/auth/me', requireBlogAuthor, async (request, response) => {
+  sendData(response, {
+    employeeId: request.blogAuthorEmployeeId,
+    email: request.blogAuthorEmail,
+    name: request.blogAuthorName,
+  })
+})
+
+app.get('/api/blog/author/posts', requireBlogAuthor, async (request, response) => {
+  const posts = await BlogPostModel.find({ authorId: request.blogAuthorId })
+    .select('-authorId -__v')
+    .sort({ createdAt: -1 })
+    .lean()
+  sendData(response, posts)
+})
+
+app.post('/api/blog/author/posts', requireBlogAuthor, async (request, response) => {
+  const input = blogPostSchema.parse(request.body)
+  const post = await BlogPostModel.create({
+    authorId: request.blogAuthorId,
+    authorEmployeeId: request.blogAuthorEmployeeId,
+    authorName: request.blogAuthorName,
+    ...input,
+    slug: `${projectSlugFromTitle(input.title)}-${randomInt(1000, 10000)}`,
+  })
+  sendData(response, post, 201)
+})
+
+app.patch('/api/blog/author/posts/:id', requireBlogAuthor, async (request, response) => {
+  if (!mongoose.isValidObjectId(request.params.id))
+    throw new HttpError(400, 'Invalid blog post ID.')
+  const input = blogPostSchema.parse(request.body)
+  const post = await BlogPostModel.findOne({
+    _id: request.params.id,
+    authorId: request.blogAuthorId,
+  })
+  if (!post) throw new HttpError(404, 'Blog post not found.')
+
+  post.title = input.title
+  post.category = input.category
+  post.excerpt = input.excerpt
+  post.content = input.content
+  post.status = 'pending'
+  post.reviewedBy = undefined
+  post.reviewedAt = undefined
+  post.publishedAt = undefined
+  post.slug = `${projectSlugFromTitle(input.title)}-${randomInt(1000, 10000)}`
+  await post.save()
+  sendData(response, post)
+})
+
 app.get('/api/public/inquiries/:inquiryNumber', inquiryLookupLimiter, async (request, response) => {
   const { inquiryNumber } = request.params
   if (typeof inquiryNumber !== 'string' || !/^\d{8}$/.test(inquiryNumber)) {
@@ -297,10 +515,16 @@ app.post('/api/public/ratings', ratingLimiter, async (request, response) => {
 })
 
 app.post('/api/admin/auth/login', loginLimiter, async (request, response) => {
-  const { email, password } = loginSchema.parse(request.body)
-  const admin = await AdminModel.findOne({ email: email.toLowerCase() }).select('+passwordHash')
+  const { identifier, password } = loginSchema.parse(request.body)
+  const admin = await AdminModel.findOne(
+    /^AZ\d{4}$/i.test(identifier)
+      ? { adminNumber: identifier.toUpperCase() }
+      : { email: identifier.toLowerCase() },
+  ).select('+passwordHash')
   const passwordIsValid = await bcrypt.compare(password, admin?.passwordHash ?? dummyPasswordHash)
   if (!admin || !passwordIsValid) throw new HttpError(401, 'Email or password is incorrect.')
+  if (admin.loginHeld)
+    throw new HttpError(403, 'This admin login is on hold. Contact the account owner.')
   const adminNumber = await ensureAdminNumber(admin.id, admin.adminNumber)
 
   const token = jwt.sign({}, env.JWT_SECRET, {
@@ -310,7 +534,7 @@ app.post('/api/admin/auth/login', loginLimiter, async (request, response) => {
   response.cookie('az_admin', token, {
     httpOnly: true,
     secure: env.COOKIE_SECURE,
-    sameSite: 'strict',
+    sameSite: cookieSameSite,
     maxAge: 8 * 60 * 60 * 1000,
     path: '/',
   })
@@ -326,7 +550,7 @@ app.post('/api/admin/auth/logout', (_request, response) => {
   response.clearCookie('az_admin', {
     httpOnly: true,
     secure: env.COOKIE_SECURE,
-    sameSite: 'strict',
+    sameSite: cookieSameSite,
     path: '/',
   })
   sendData(response, { message: 'Logged out.' })
@@ -334,12 +558,12 @@ app.post('/api/admin/auth/logout', (_request, response) => {
 
 app.get('/api/admin/auth/me', requireAdmin, async (request, response) => {
   const admin = await AdminModel.findById(request.adminId)
-    .select('email role permissions adminNumber')
+    .select('email role permissions adminNumber loginHeld')
     .lean()
   if (!admin) throw new HttpError(401, 'Admin account not found.')
   sendData(response, {
     email: admin.email,
-    adminNumber: admin.adminNumber,
+    adminNumber: request.adminNumber,
     role: admin.role,
     permissions: admin.permissions ?? [],
   })
@@ -348,63 +572,246 @@ app.get('/api/admin/auth/me', requireAdmin, async (request, response) => {
 app.use('/api/admin', requireAdmin)
 app.use('/api/admin', requireAdminResourceAccess)
 
+app.get(
+  '/api/admin/blog-writing-requests',
+  requireAdminPermission('blog-writing-requests'),
+  async (_request, response) => {
+    const requests = await BlogWritingRequestModel.find().sort({ createdAt: -1 }).lean()
+    sendData(response, requests)
+  },
+)
+
+app.patch(
+  '/api/admin/blog-writing-requests/:id',
+  requireAdminPermission('blog-writing-requests'),
+  async (request, response) => {
+    if (!mongoose.isValidObjectId(request.params.id))
+      throw new HttpError(400, 'Invalid writing request ID.')
+    const { status } = blogWritingRequestReviewSchema.parse(request.body)
+    const item = await BlogWritingRequestModel.findById(request.params.id)
+    if (!item) throw new HttpError(404, 'Writing request not found.')
+    if (item.status === 'account_created') {
+      throw new HttpError(409, 'This writing request already has a blog author account.')
+    }
+    item.status = status
+    item.reviewedBy = `${request.adminNumber} ${request.adminEmail}`
+    item.reviewedAt = new Date()
+    await item.save()
+    await recordAdminActivity(request, {
+      action: 'update',
+      resource: 'Blog writing request',
+      recordId: item.id,
+      recordLabel: `${item.name} · ${item.email}`,
+      changedFields: ['status'],
+    })
+    sendData(response, item)
+  },
+)
+
+app.post(
+  '/api/admin/blog-authors',
+  requireAdminPermission('blog-writing-requests'),
+  async (request, response) => {
+    const input = createBlogAuthorSchema.parse(request.body)
+    if (!mongoose.isValidObjectId(input.requestId)) throw new HttpError(400, 'Invalid request ID.')
+    const application = await BlogWritingRequestModel.findById(input.requestId)
+    if (!application) throw new HttpError(404, 'Writing request not found.')
+    if (application.status !== 'approved') {
+      throw new HttpError(400, 'Approve the writing request before creating an author account.')
+    }
+    if (await BlogAuthorModel.exists({ requestId: application._id })) {
+      throw new HttpError(409, 'A blog author account has already been created for this request.')
+    }
+    if (await BlogAuthorModel.exists({ email: application.email })) {
+      throw new HttpError(409, 'A blog author account already exists for this email.')
+    }
+
+    let employeeId = ''
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      employeeId = `BLOG${randomInt(0, 10_000).toString().padStart(4, '0')}`
+      if (!(await BlogAuthorModel.exists({ employeeId }))) break
+      employeeId = ''
+    }
+    if (!employeeId) throw new Error('Could not generate an available BLOG employee ID.')
+
+    const passwordHash = await bcrypt.hash(input.password, 12)
+    const author = await BlogAuthorModel.create({
+      employeeId,
+      requestId: application._id,
+      name: application.name,
+      email: application.email,
+      passwordHash,
+    })
+    application.status = 'account_created'
+    application.reviewedBy = `${request.adminNumber} ${request.adminEmail}`
+    application.reviewedAt = new Date()
+    await application.save()
+    await recordAdminActivity(request, {
+      action: 'create',
+      resource: 'Blog author account',
+      recordId: author.id,
+      recordLabel: `${author.employeeId} ${author.email}`,
+    })
+    sendData(
+      response,
+      {
+        _id: author.id,
+        employeeId: author.employeeId,
+        name: author.name,
+        email: author.email,
+        loginHeld: author.loginHeld,
+        createdAt: author.createdAt,
+      },
+      201,
+    )
+  },
+)
+
+app.get(
+  '/api/admin/blog-authors',
+  requireAdminPermission('blog-writers'),
+  async (_request, response) => {
+    const authors = await BlogAuthorModel.find()
+      .select('-passwordHash')
+      .sort({ createdAt: -1 })
+      .lean()
+    sendData(response, authors)
+  },
+)
+
+app.patch(
+  '/api/admin/blog-authors/:id/login-hold',
+  requireAdminPermission('blog-writers'),
+  async (request, response) => {
+    if (!mongoose.isValidObjectId(request.params.id)) throw new HttpError(400, 'Invalid author ID.')
+    const { loginHeld } = blogLoginHoldSchema.parse(request.body)
+    const author = await BlogAuthorModel.findById(request.params.id)
+    if (!author) throw new HttpError(404, 'Blog author account not found.')
+    author.loginHeld = loginHeld
+    await author.save()
+    await recordAdminActivity(request, {
+      action: loginHeld ? 'login-hold' : 'login-release',
+      resource: 'Blog author account',
+      recordId: author.id,
+      recordLabel: `${author.employeeId} ${author.email}`,
+      changedFields: ['loginHeld'],
+    })
+    sendData(response, {
+      _id: author.id,
+      employeeId: author.employeeId,
+      name: author.name,
+      email: author.email,
+      loginHeld: author.loginHeld,
+      createdAt: author.createdAt,
+    })
+  },
+)
+
+app.get(
+  '/api/admin/blog-posts',
+  requireAdminPermission('blog-post-review'),
+  async (request, response) => {
+    const status = (['pending', 'published', 'declined'] as const).find(
+      (option) => option === request.query.status,
+    )
+    const filter = status ? { status } : {}
+    const posts = await BlogPostModel.find(filter).sort({ createdAt: -1 }).lean()
+    sendData(response, posts)
+  },
+)
+
+app.patch(
+  '/api/admin/blog-posts/:id/review',
+  requireAdminPermission('blog-post-review'),
+  async (request, response) => {
+    if (!mongoose.isValidObjectId(request.params.id))
+      throw new HttpError(400, 'Invalid blog post ID.')
+    const { status } = blogReviewSchema.parse(request.body)
+    const post = await BlogPostModel.findById(request.params.id)
+    if (!post) throw new HttpError(404, 'Blog post not found.')
+    post.status = status
+    post.reviewedBy = `${request.adminNumber} ${request.adminEmail}`
+    post.reviewedAt = new Date()
+    post.publishedAt = status === 'published' ? new Date() : undefined
+    await post.save()
+    await recordAdminActivity(request, {
+      action: 'update',
+      resource: 'Blog post',
+      recordId: post.id,
+      recordLabel: post.title,
+      changedFields: ['status'],
+    })
+    sendData(response, post)
+  },
+)
+
 app.get('/api/admin/admins', requireOwner, async (_request, response) => {
   const admins = await AdminModel.find()
-    .select('adminNumber email role permissions createdAt')
+    .select('adminNumber email role permissions loginHeld createdAt')
     .sort({ createdAt: 1 })
     .lean()
   await Promise.all(
     admins.map(async (admin) => {
-      if (typeof admin.adminNumber !== 'number') {
-        admin.adminNumber = await ensureAdminNumber(String(admin._id))
+      if (typeof admin.adminNumber !== 'string' || !/^AZ\d{4}$/.test(admin.adminNumber)) {
+        admin.adminNumber = await ensureAdminNumber(String(admin._id), admin.adminNumber)
       }
     }),
   )
   sendData(response, admins)
 })
 
-app.post('/api/admin/admins', requireOwner, async (request, response) => {
-  const input = createAdminSchema.parse(request.body)
-  const passwordHash = await bcrypt.hash(input.password, 12)
-  const allPermissions = [
-    'projects',
-    'clients',
-    'testimonials',
-    'services',
-    'site-settings',
-    'inquiries',
-    'ratings',
-  ] as const
-  const role = allPermissions.every((permission) => input.permissions.includes(permission))
-    ? 'full'
-    : 'custom'
-  const adminNumber = await nextAdminNumber()
-  const admin = await AdminModel.create({
-    adminNumber,
-    email: input.email.toLowerCase(),
-    passwordHash,
-    role,
-    permissions: input.permissions,
-  })
-  await recordAdminActivity(request, {
-    action: 'create',
-    resource: 'Admin account',
-    recordId: admin.id,
-    recordLabel: `#${admin.adminNumber} ${admin.email}`,
-  })
-  sendData(
-    response,
-    {
-      _id: admin.id,
-      adminNumber: admin.adminNumber,
-      email: admin.email,
-      role: admin.role,
-      permissions: admin.permissions,
-      createdAt: admin.createdAt,
-    },
-    201,
-  )
-})
+app.post(
+  '/api/admin/admins',
+  requireAdminPermission('create-admins'),
+  async (request, response) => {
+    const input = createAdminSchema.parse(request.body)
+    if (
+      request.adminRole !== 'owner' &&
+      input.permissions.some((permission) => !request.adminPermissions?.includes(permission))
+    ) {
+      throw new HttpError(403, 'You can only assign permissions that you hold.')
+    }
+    const passwordHash = await bcrypt.hash(input.password, 12)
+    const allPermissions = [
+      'projects',
+      'clients',
+      'testimonials',
+      'services',
+      'site-settings',
+      'inquiries',
+      'ratings',
+    ] as const
+    const role = allPermissions.every((permission) => input.permissions.includes(permission))
+      ? 'full'
+      : 'custom'
+    const adminNumber = await nextAdminNumber()
+    const admin = await AdminModel.create({
+      adminNumber,
+      email: input.email.toLowerCase(),
+      passwordHash,
+      role,
+      permissions: input.permissions,
+    })
+    await recordAdminActivity(request, {
+      action: 'create',
+      resource: 'Admin account',
+      recordId: admin.id,
+      recordLabel: `${admin.adminNumber} ${admin.email}`,
+    })
+    sendData(
+      response,
+      {
+        _id: admin.id,
+        adminNumber: admin.adminNumber,
+        email: admin.email,
+        role: admin.role,
+        permissions: admin.permissions,
+        createdAt: admin.createdAt,
+      },
+      201,
+    )
+  },
+)
 
 app.patch('/api/admin/admins/:id/permissions', requireOwner, async (request, response) => {
   if (!mongoose.isValidObjectId(request.params.id)) throw new HttpError(400, 'Invalid admin ID.')
@@ -432,7 +839,7 @@ app.patch('/api/admin/admins/:id/permissions', requireOwner, async (request, res
     action: 'permissions',
     resource: 'Admin account',
     recordId: target.id,
-    recordLabel: `#${target.adminNumber} ${target.email}`,
+    recordLabel: `${target.adminNumber} ${target.email}`,
     changedFields: ['permissions', 'role'],
   })
   sendData(response, {
@@ -441,6 +848,37 @@ app.patch('/api/admin/admins/:id/permissions', requireOwner, async (request, res
     email: target.email,
     role: target.role,
     permissions: target.permissions,
+    createdAt: target.createdAt,
+  })
+})
+
+app.patch('/api/admin/admins/:id/login-hold', requireOwner, async (request, response) => {
+  if (!mongoose.isValidObjectId(request.params.id)) throw new HttpError(400, 'Invalid admin ID.')
+  if (request.params.id === request.adminId) {
+    throw new HttpError(400, 'You cannot place your own admin account on hold.')
+  }
+  const { loginHeld } = adminLoginHoldSchema.parse(request.body)
+  const target = await AdminModel.findById(request.params.id)
+  if (!target) throw new HttpError(404, 'Admin account not found.')
+  if (target.role === 'owner') {
+    throw new HttpError(403, 'Owner accounts cannot be placed on hold.')
+  }
+  target.loginHeld = loginHeld
+  await target.save()
+  await recordAdminActivity(request, {
+    action: loginHeld ? 'login-hold' : 'login-release',
+    resource: 'Admin account',
+    recordId: target.id,
+    recordLabel: `${target.adminNumber} ${target.email}`,
+    changedFields: ['loginHeld'],
+  })
+  sendData(response, {
+    _id: target.id,
+    adminNumber: target.adminNumber,
+    email: target.email,
+    role: target.role,
+    permissions: target.permissions,
+    loginHeld: target.loginHeld,
     createdAt: target.createdAt,
   })
 })
@@ -460,12 +898,12 @@ app.delete('/api/admin/admins/:id', requireOwner, async (request, response) => {
     action: 'revoke',
     resource: 'Admin account',
     recordId: target.id,
-    recordLabel: `#${target.adminNumber} ${target.email}`,
+    recordLabel: `${target.adminNumber} ${target.email}`,
   })
   response.status(204).end()
 })
 
-app.get('/api/admin/activity', requireOwner, async (_request, response) => {
+app.get('/api/admin/activity', requireAdminPermission('activity'), async (_request, response) => {
   const items = await AdminActivityModel.find()
     .select('-__v')
     .sort({ createdAt: -1, _id: -1 })
@@ -838,7 +1276,7 @@ app.patch('/api/admin/inquiries/:id', async (request, response) => {
       fromStatus: item.status,
       toStatus: updates.status,
       comment,
-      updatedBy: `#${request.adminNumber} ${request.adminEmail}`,
+      updatedBy: `${request.adminNumber} ${request.adminEmail}`,
       updatedAt: new Date(),
     })
   }

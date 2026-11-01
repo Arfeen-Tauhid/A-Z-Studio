@@ -152,7 +152,13 @@ export function HomePage() {
             </Link>
           </motion.div>
         </div>
-        <div className="hero-art" aria-label="Cinematic landscape preview">
+        <motion.div
+          className="hero-art"
+          aria-label="Cinematic landscape preview"
+          initial={reducedMotion ? false : { opacity: 0, y: 24, scale: 0.985 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={reducedMotion ? { duration: 0 } : { duration: 0.85, delay: 0.22 }}
+        >
           {showreelUrl ? (
             <VideoPlayer
               className="hero-reel"
@@ -167,6 +173,12 @@ export function HomePage() {
               fetchPriority="high"
             />
           )}
+          <div className="hero-art-topline" aria-hidden="true">
+            <span>AZ / VISUAL STORIES</span>
+            <span className="hero-live-indicator">
+              <i /> SHOWREEL
+            </span>
+          </div>
           <div className="hero-art-shade" />
           <div className="hero-art-label">
             <CirclePlay size={16} /> STORIES IN MOTION <span>EST. ON EVERY FRAME</span>
@@ -177,11 +189,16 @@ export function HomePage() {
           <a className="hero-scroll" href="#work" aria-label="Scroll to selected work">
             <ArrowDown size={16} />
           </a>
-        </div>
-        <div className="hero-meta">
+        </motion.div>
+        <motion.div
+          className="hero-meta"
+          initial={reducedMotion ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={reducedMotion ? { duration: 0 } : { delay: 0.5 }}
+        >
           <span>STORY / EDIT / FINISH</span>
           <span>CREATIVE PARTNERS, WORLDWIDE</span>
-        </div>
+        </motion.div>
       </section>
 
       <section className="selected-work section shell" id="work">

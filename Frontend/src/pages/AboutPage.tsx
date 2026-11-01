@@ -7,13 +7,13 @@ export function AboutPage() {
       <div className="page-intro">
         <span className="eyebrow">ABOUT A Z STUDIOS</span>
         <h1>
-          Stories with
+          Good stories
           <br />
-          <em>purpose and polish.</em>
+          <em>deserve a great cut.</em>
         </h1>
         <p>
-          A Z Studios is an independent creative post-production studio partnering with brands and
-          creators across the United States, the Gulf countries, and other markets around the world.
+          We’re an independent post-production studio helping brands and creators turn raw footage
+          into clear, considered video stories.
         </p>
       </div>
       <div className="about-image">
@@ -22,36 +22,57 @@ export function AboutPage() {
           alt="A camera setup ready for a shoot"
           loading="lazy"
         />
-        <span>CREATIVE PARTNERSHIPS, WITHOUT BORDERS</span>
+        <div className="about-image-caption">
+          <span className="eyebrow">A Z STUDIOS / POST-PRODUCTION</span>
+          <strong>Make every frame earn its place.</strong>
+        </div>
       </div>
       <div className="about-columns">
         <div>
-          <span className="eyebrow">OUR APPROACH</span>
+          <span className="eyebrow">WHY WE DO THE WORK</span>
           <h2>
-            A global studio.
+            The edit is where
             <br />
-            One clear purpose.
+            the story finds focus.
           </h2>
         </div>
         <div>
           <p>
-            We provide video editing, short-form content, YouTube and podcast production, motion
-            graphics, color grading, sound finishing, and brand and commercial video services.
+            A strong edit does more than arrange clips. It creates momentum, brings the important
+            details forward, and gives every moment a reason to be there.
           </p>
           <p>
-            Our team currently works with clients in the USA, Gulf countries, and other regions,
-            bringing clear communication and a consistent creative process to every collaboration.
+            We partner with clients across the United States, Gulf countries, and other markets.
+            Wherever we work from, clear communication and a shared creative direction keep the
+            collaboration grounded.
           </p>
           <p>
-            We listen first, shape the edit around your audience, and refine each detail together.
-            You stay informed from the first brief through final delivery.
+            From short-form content and podcasts to brand films and finishing, we listen first,
+            shape the approach around your audience, and refine the details together.
           </p>
         </div>
       </div>
+      <div className="about-values" aria-label="What you can expect from A Z Studios">
+        <article>
+          <span>01 / CLARITY</span>
+          <h3>A considered plan.</h3>
+          <p>Shared goals and clear next steps before the edit gets underway.</p>
+        </article>
+        <article>
+          <span>02 / CRAFT</span>
+          <h3>Care in every cut.</h3>
+          <p>Thoughtful pacing and details shaped to support the story.</p>
+        </article>
+        <article>
+          <span>03 / PARTNERSHIP</span>
+          <h3>Good work, together.</h3>
+          <p>Open feedback and collaboration from first brief to final files.</p>
+        </article>
+      </div>
       <div className="page-bottom-cta">
         <div>
-          <span className="eyebrow">LET’S CREATE SOMETHING</span>
-          <h2>Let’s give your story its best cut.</h2>
+          <span className="eyebrow">YOUR STORY STARTS HERE</span>
+          <h2>Let’s find the right way to tell it.</h2>
         </div>
         <Link className="button button-accent" to="/contact">
           Get in touch <ArrowUpRight size={16} />

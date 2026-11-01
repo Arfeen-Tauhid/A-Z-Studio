@@ -15,6 +15,7 @@ const links = [
   { to: '/work', label: 'Work' },
   { to: '/services', label: 'Services' },
   { to: '/clients', label: 'Clients' },
+  { to: '/blogs', label: 'Blogs' },
   { to: '/about', label: 'About' },
   { to: '/process', label: 'Process' },
 ]
@@ -50,16 +51,34 @@ export function SiteLayout() {
 
     const selector = [
       '.page-intro',
+      '.hero .hero-copy',
       '.section-topline',
+      '.services-inner > *',
+      '.service-row',
+      '.client-strip > *',
+      '.inquiry-tracker-section > *',
+      '.approach .process-grid > *',
+      '.about-image',
+      '.about-columns > div',
+      '.about-values > *',
+      '.service-principle',
       '.project-grid > *',
       '.services-page-grid > *',
       '.process-step',
+      '.process-list-item',
+      '.process-note',
+      '.page-bottom-cta',
       '.client-card',
       '.testimonial-card',
       '.quote-panel',
       '.closing-inner',
       '.project-story',
       '.inquiry-form',
+      '.blog-toolbar',
+      '.blog-hero',
+      '.blog-section',
+      '.blog-card',
+      '.blog-article',
     ].join(',')
     const visibleElements = new WeakSet<Element>()
     const observer = new IntersectionObserver(
@@ -262,6 +281,13 @@ export function SiteLayout() {
               onFocus={() => preloadRoute('/clients')}
             >
               Clients
+            </Link>
+            <Link
+              to="/blogs"
+              onPointerEnter={() => preloadRoute('/blogs')}
+              onFocus={() => preloadRoute('/blogs')}
+            >
+              Blogs
             </Link>
             <Link
               to="/pricing"

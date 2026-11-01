@@ -4,28 +4,33 @@ import { Link } from 'react-router-dom'
 const process = [
   [
     '01',
-    'Share your project',
-    'Tell us about your audience, goals, platforms, timeline, and the footage or materials you already have.',
+    'THE BRIEF',
+    'Start with the story.',
+    'Tell us what you’re making, who it’s for, where it will live, and what you already have. A rough idea is enough to start.',
   ],
   [
     '02',
-    'Plan the right approach',
-    'We align on creative direction, deliverables, timing, project scope, and pricing before production begins.',
+    'THE PLAN',
+    'Set a clear direction.',
+    'Together we define the creative approach, deliverables, timing, and scope—so expectations are clear before editing begins.',
   ],
   [
     '03',
-    'Shape the story',
-    'We turn your source material into a focused edit, with the right pacing, graphics, and finishing.',
+    'THE EDIT',
+    'Find the strongest cut.',
+    'We shape the footage into a focused story, balancing pacing, picture, sound, and graphics around the agreed direction.',
   ],
   [
     '04',
-    'Review and refine',
-    'You review the edit, share feedback, and we make the agreed revisions together.',
+    'THE REVIEW',
+    'Refine it together.',
+    'You review the edit and share consolidated feedback. We work through the agreed revisions and keep you updated as it comes together.',
   ],
   [
     '05',
-    'Final delivery',
-    'Approved exports are prepared in the formats and aspect ratios we agreed on, ready for your channels.',
+    'THE HANDOFF',
+    'Ready for its next screen.',
+    'Once approved, we prepare final exports in the formats and aspect ratios we agreed on, ready for your channels.',
   ],
 ]
 
@@ -33,27 +38,38 @@ export function ProcessPage() {
   return (
     <div className="shell page-shell">
       <div className="page-intro">
-        <span className="eyebrow">THE PROCESS</span>
+        <span className="eyebrow">A CLEAR, COLLABORATIVE WORKFLOW</span>
         <h1>
-          Clear from
+          From first brief
           <br />
-          <em>first cut to final.</em>
+          <em>to final delivery.</em>
         </h1>
-        <p>Good collaboration is part of the craft. Here’s what to expect when we work together.</p>
+        <p>
+          No guesswork, no disappearing act. Just a shared plan, considered creative work, and
+          feedback at the right moments.
+        </p>
       </div>
       <div className="process-list">
-        {process.map(([number, title, copy]) => (
+        {process.map(([number, stage, title, copy]) => (
           <article key={number} className="process-list-item">
             <span className="process-list-number">{number}</span>
-            <h2>{title}</h2>
+            <div className="process-list-title">
+              <span className="eyebrow">{stage}</span>
+              <h2>{title}</h2>
+            </div>
             <p>{copy}</p>
           </article>
         ))}
       </div>
+      <p className="process-note">
+        <span className="eyebrow">ALWAYS IN THE LOOP</span>
+        Your project scope, delivery dates, and revision rounds are agreed together before work
+        begins.
+      </p>
       <div className="page-bottom-cta">
         <div>
-          <span className="eyebrow">READY WHEN YOU ARE</span>
-          <h2>Let’s start with a conversation.</h2>
+          <span className="eyebrow">HAVE A PROJECT IN MIND?</span>
+          <h2>Let’s talk through your first cut.</h2>
         </div>
         <Link className="button button-accent" to="/contact">
           Start a project <ArrowUpRight size={16} />

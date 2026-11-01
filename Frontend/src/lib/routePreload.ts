@@ -7,12 +7,18 @@ const routeLoaders: Record<string, () => Promise<unknown>> = {
   '/process': () => import('../pages/ProcessPage'),
   '/pricing': () => import('../pages/PricingPage'),
   '/contact': () => import('../pages/ContactPage'),
+  '/blogs': () => import('../pages/BlogsPage'),
+  '/blogs/:slug': () => import('../pages/BlogsPage'),
   '/work/:slug': () => import('../pages/ProjectPage'),
 }
 
 export function preloadRoute(pathname: string) {
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
-  const route = normalizedPath.startsWith('/work/') ? '/work/:slug' : normalizedPath
+  const route = normalizedPath.startsWith('/work/')
+    ? '/work/:slug'
+    : normalizedPath.startsWith('/blogs/')
+      ? '/blogs/:slug'
+      : normalizedPath
   const load = routeLoaders[route]
   if (load) void load().catch(() => undefined)
 }

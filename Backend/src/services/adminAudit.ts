@@ -1,37 +1,56 @@
 import type { Request } from 'express'
-import { AdminActivityModel, AdminModel, CounterModel } from '../models/index.js'
+import { randomInt } from 'node:crypto'
+import { Types } from 'mongoose'
+import { AdminActivityModel, AdminModel } from '../models/index.js'
 
 export type AdminActivityAction =
-  'create' | 'update' | 'delete' | 'upload' | 'permissions' | 'revoke'
+  | 'create'
+  | 'update'
+  | 'delete'
+  | 'upload'
+  | 'permissions'
+  | 'revoke'
+  | 'login-hold'
+  | 'login-release'
 
 export async function nextAdminNumber() {
-  const counter = await CounterModel.findByIdAndUpdate(
-    'admin-number',
-    { $inc: { value: 1 } },
-    { new: true, upsert: true, setDefaultsOnInsert: true },
-  )
-  return counter.value
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const number = `AZ${randomInt(0, 10_000).toString().padStart(4, '0')}`
+    if (!(await AdminModel.exists({ adminNumber: number }))) return number
+  }
+  throw new Error('Could not generate an available admin number.')
 }
 
-export async function ensureAdminNumber(adminId: string, currentNumber?: number | null) {
-  if (typeof currentNumber === 'number') return currentNumber
-  const allocatedNumber = await nextAdminNumber()
-  const admin = await AdminModel.findOneAndUpdate(
-    {
-      _id: adminId,
-      $or: [{ adminNumber: { $exists: false } }, { adminNumber: null }],
-    },
-    { $set: { adminNumber: allocatedNumber } },
-    { new: true },
-  )
-    .select('adminNumber')
-    .lean()
-  if (typeof admin?.adminNumber === 'number') return admin.adminNumber
-  const existing = await AdminModel.findById(adminId).select('adminNumber').lean()
-  if (typeof existing?.adminNumber !== 'number') {
-    throw new Error('Could not assign a number to the admin account.')
+export async function ensureAdminNumber(adminId: string, currentNumber?: string | number | null) {
+  if (typeof currentNumber === 'string' && /^AZ\d{4}$/.test(currentNumber)) return currentNumber
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const allocatedNumber = await nextAdminNumber()
+    try {
+      const result = await AdminModel.collection.updateOne(
+        {
+          _id: new Types.ObjectId(adminId),
+          $or: [
+            { adminNumber: { $exists: false } },
+            { adminNumber: null },
+            { adminNumber: { $not: /^AZ\d{4}$/ } },
+          ],
+        },
+        { $set: { adminNumber: allocatedNumber } },
+      )
+      if (result.matchedCount) return allocatedNumber
+    } catch (error) {
+      if (!(error instanceof Error) || !('code' in error) || error.code !== 11000) {
+        throw error
+      }
+    }
+
+    const existing = await AdminModel.findById(adminId).select('adminNumber').lean()
+    if (typeof existing?.adminNumber === 'string' && /^AZ\d{4}$/.test(existing.adminNumber)) {
+      return existing.adminNumber
+    }
   }
-  return existing.adminNumber
+  throw new Error('Could not assign a unique number to the admin account.')
 }
 
 export async function recordAdminActivity(

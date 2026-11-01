@@ -43,11 +43,13 @@ export type ApiFieldError = { field: string; message: string }
 
 export class ApiRequestError extends Error {
   public readonly details: ApiFieldError[]
+  public readonly status: number
 
-  constructor(message: string, details: ApiFieldError[] = []) {
+  constructor(message: string, details: ApiFieldError[] = [], status = 0) {
     super(message)
     this.name = 'ApiRequestError'
     this.details = details
+    this.status = status
   }
 }
 
@@ -88,6 +90,7 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
     throw new ApiRequestError(
       payload?.error?.message ?? `Request failed (${response.status})`,
       payload?.error?.details ?? [],
+      response.status,
     )
   }
 

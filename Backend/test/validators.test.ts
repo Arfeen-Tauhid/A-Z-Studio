@@ -2,11 +2,18 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   createAdminSchema,
+  adminLoginHoldSchema,
+  adminPermissionsSchema,
+  blogAuthorLoginSchema,
+  blogPostSchema,
+  blogWritingRequestSchema,
+  blogWritingRequestReviewSchema,
   adminInquirySchema,
   adminInquiryUpdateSchema,
   clientSchema,
   inquirySchema,
   inquiryStatusSchema,
+  loginSchema,
   projectSchema,
   publicRatingSchema,
   siteSettingsSchema,
@@ -63,6 +70,17 @@ describe('limited admin access', () => {
     )
   })
 
+  it('grants account creation and activity viewing only through explicit permissions', () => {
+    assert.equal(canAccessAdminPath('custom', ['create-admins'], 'POST', '/admins'), true)
+    assert.equal(canAccessAdminPath('custom', ['create-admins'], 'GET', '/admins'), false)
+    assert.equal(canAccessAdminPath('custom', ['activity'], 'GET', '/activity'), true)
+    assert.equal(canAccessAdminPath('custom', ['activity'], 'POST', '/activity'), false)
+    assert.equal(canAccessAdminPath('custom', [], 'GET', '/activity'), false)
+    assert.equal(canAccessAdminPath('full', [], 'POST', '/admins'), false)
+    assert.equal(canAccessAdminPath('full', [], 'GET', '/activity'), false)
+    assert.equal(canAccessAdminPath('full', ['create-admins'], 'POST', '/admins'), true)
+  })
+
   it('lets custom content admins create assigned content and upload its media', () => {
     const permissions = ['projects', 'clients', 'testimonials', 'services']
     for (const resource of permissions) {
@@ -80,9 +98,142 @@ describe('limited admin access', () => {
     assert.equal(canAccessAdminPath('custom', permissions, 'POST', '/site-settings'), false)
     assert.equal(canAccessAdminPath('custom', permissions, 'POST', '/inquiries'), false)
   })
+
+  it('limits blog sections to their assigned permissions', () => {
+    assert.equal(
+      canAccessAdminPath('custom', ['blog-writing-requests'], 'GET', '/blog-writing-requests'),
+      true,
+    )
+    assert.equal(
+      canAccessAdminPath('custom', ['blog-writing-requests'], 'POST', '/blog-authors'),
+      true,
+    )
+    assert.equal(
+      canAccessAdminPath(
+        'custom',
+        ['blog-writing-requests'],
+        'PATCH',
+        '/blog-authors/123/login-hold',
+      ),
+      false,
+    )
+    assert.equal(canAccessAdminPath('custom', ['blog-writers'], 'GET', '/blog-authors'), true)
+    assert.equal(
+      canAccessAdminPath('custom', ['blog-writers'], 'PATCH', '/blog-authors/123/login-hold'),
+      true,
+    )
+    assert.equal(canAccessAdminPath('custom', ['blog-writers'], 'GET', '/blog-posts'), false)
+    assert.equal(
+      canAccessAdminPath('custom', ['blog-post-review'], 'PATCH', '/blog-posts/123/review'),
+      true,
+    )
+    assert.equal(canAccessAdminPath('custom', ['blog-post-review'], 'GET', '/blog-authors'), false)
+    assert.equal(canAccessAdminPath('limited', ['blog-post-review'], 'GET', '/blog-posts'), true)
+    assert.equal(canAccessAdminPath('limited', ['blog-writers'], 'GET', '/blog-authors'), true)
+  })
 })
 
 describe('admin account validation', () => {
+  it('accepts email or AZ admin-number login identifiers', () => {
+    assert.equal(
+      loginSchema.safeParse({ identifier: 'AZ0042', password: 'a-valid-password' }).success,
+      true,
+    )
+    assert.equal(
+      loginSchema.safeParse({ identifier: 'az0042', password: 'a-valid-password' }).success,
+      true,
+    )
+    assert.equal(
+      loginSchema.safeParse({ email: 'editor@example.com', password: 'a-valid-password' }).success,
+      true,
+    )
+    assert.equal(
+      loginSchema.safeParse({ identifier: 'not-an-admin-id', password: 'a-valid-password' })
+        .success,
+      false,
+    )
+  })
+
+  describe('blog writing access', () => {
+    it('validates access requests with an international phone number', () => {
+      const request = {
+        name: 'Taylor Editor',
+        socialPlatform: 'YouTube',
+        yearsExperience: '4',
+        motivation: 'I want to share practical editing knowledge with the creative community.',
+        email: 'taylor@example.com',
+        contactNumber: '+1 (555) 123-4567',
+      }
+      const result = blogWritingRequestSchema.safeParse(request)
+      assert.equal(result.success, true)
+      if (result.success) assert.equal(result.data.contactNumber, '+15551234567')
+      assert.equal(
+        blogWritingRequestSchema.safeParse({ ...request, contactNumber: '5551234' }).success,
+        false,
+      )
+    })
+
+    it('accepts BLOG IDs or email for writer sign-in', () => {
+      const blogIdLogin = blogAuthorLoginSchema.safeParse({
+        identifier: ' blog0042 ',
+        password: 'a-password',
+      })
+      assert.equal(blogIdLogin.success, true)
+      if (blogIdLogin.success) assert.equal(blogIdLogin.data.identifier, 'BLOG0042')
+
+      const emailLogin = blogAuthorLoginSchema.safeParse({
+        identifier: 'WRITER@EXAMPLE.COM',
+        password: 'a-password',
+      })
+      assert.equal(emailLogin.success, true)
+      if (emailLogin.success) assert.equal(emailLogin.data.identifier, 'writer@example.com')
+
+      assert.equal(
+        blogAuthorLoginSchema.safeParse({
+          identifier: 'writer@example.com',
+          password: 'a-password',
+        }).success,
+        true,
+      )
+      assert.equal(
+        blogAuthorLoginSchema.safeParse({ identifier: 'AZ0042', password: 'a-password' }).success,
+        false,
+      )
+    })
+
+    it('validates blog content and owner review decisions', () => {
+      const post = {
+        title: 'What editors should know about proxy workflows',
+        category: 'Editing workflow',
+        excerpt: 'A practical look at keeping large editing projects responsive.',
+        content: 'A useful blog post needs enough detail to explain the workflow clearly. '.repeat(
+          3,
+        ),
+      }
+      assert.equal(blogPostSchema.safeParse(post).success, true)
+      assert.equal(blogPostSchema.safeParse({ ...post, content: 'Too short.' }).success, false)
+      assert.equal(blogWritingRequestReviewSchema.safeParse({ status: 'approved' }).success, true)
+      assert.equal(blogWritingRequestReviewSchema.safeParse({ status: 'pending' }).success, false)
+    })
+  })
+
+  it('validates login hold and admin access permissions', () => {
+    assert.equal(adminLoginHoldSchema.safeParse({ loginHeld: true }).success, true)
+    assert.equal(adminLoginHoldSchema.safeParse({ loginHeld: 'true' }).success, false)
+    assert.equal(
+      adminPermissionsSchema.safeParse({
+        permissions: [
+          'create-admins',
+          'activity',
+          'blog-writing-requests',
+          'blog-writers',
+          'blog-post-review',
+        ],
+      }).success,
+      true,
+    )
+  })
+
   it('requires a valid email, role, and strong initial password', () => {
     assert.equal(
       createAdminSchema.safeParse({

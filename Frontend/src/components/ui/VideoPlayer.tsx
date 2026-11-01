@@ -1,5 +1,5 @@
 import { ExternalLink, Volume2, VolumeX } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { youtubeVideoId } from '../../lib/youtube'
 
 export function VideoPlayer({
@@ -15,10 +15,38 @@ export function VideoPlayer({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const playerRef = useRef<HTMLDivElement>(null)
   const [audio, setAudio] = useState({ source, muted: true })
   const [playbackError, setPlaybackError] = useState('')
+  const [nearViewportSource, setNearViewportSource] = useState<string | null>(null)
+  const isNearViewport =
+    typeof IntersectionObserver === 'undefined' || nearViewportSource === source
   const muted = audio.source === source ? audio.muted : true
   const youtubeId = youtubeVideoId(source)
+
+  useEffect(() => {
+    const player = playerRef.current
+    if (!player || typeof IntersectionObserver === 'undefined') return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setNearViewportSource(entry.isIntersecting ? source : null),
+      { rootMargin: '300px 0px' },
+    )
+    observer.observe(player)
+    return () => observer.disconnect()
+  }, [source])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    if (isNearViewport) {
+      void video.play().catch(() => {
+        setPlaybackError('Playback could not start. Use the video controls to try again.')
+      })
+    } else {
+      video.pause()
+    }
+  }, [isNearViewport, source, youtubeId])
 
   function toggleSound() {
     const nextMuted = !muted
@@ -52,43 +80,48 @@ export function VideoPlayer({
     : undefined
 
   return (
-    <div className={`video-player ${className}`.trim()}>
+    <div ref={playerRef} className={`video-player ${className}`.trim()}>
       {embedUrl ? (
-        <>
-          <iframe
-            ref={iframeRef}
-            className="video-player-frame"
-            src={embedUrl}
-            title={title}
-            allow="autoplay; encrypted-media; picture-in-picture; web-share"
-            referrerPolicy="strict-origin-when-cross-origin"
-            allowFullScreen
-          />
-          <a
-            className="video-youtube-link"
-            href={`https://www.youtube.com/watch?v=${youtubeId}`}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={`Open ${title} on YouTube`}
-          >
-            Open on YouTube <ExternalLink size={13} />
-          </a>
-        </>
+        isNearViewport ? (
+          <>
+            <iframe
+              ref={iframeRef}
+              className="video-player-frame"
+              src={embedUrl}
+              title={title}
+              loading="lazy"
+              allow="autoplay; encrypted-media; picture-in-picture; web-share"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+            />
+            <a
+              className="video-youtube-link"
+              href={`https://www.youtube.com/watch?v=${youtubeId}`}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Open ${title} on YouTube`}
+            >
+              Open on YouTube <ExternalLink size={13} />
+            </a>
+          </>
+        ) : (
+          <div className="video-player-frame" aria-label={`${title} video loads when nearby`} />
+        )
       ) : (
         <video
           ref={videoRef}
           className="video-player-frame"
-          autoPlay
+          autoPlay={isNearViewport}
           controls={controls}
           controlsList="nodownload"
           loop
           muted={muted}
           playsInline
-          preload="metadata"
+          preload={isNearViewport ? 'metadata' : 'none'}
+          src={isNearViewport ? source : undefined}
           aria-label={title}
           onVolumeChange={(event) => setAudio({ source, muted: event.currentTarget.muted })}
         >
-          <source src={source} />
           Your browser does not support video playback.
         </video>
       )}

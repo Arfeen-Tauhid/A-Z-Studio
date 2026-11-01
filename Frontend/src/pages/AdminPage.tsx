@@ -17,17 +17,33 @@ import { sendStudioInquiryNotification } from '../lib/emailjs'
 
 type ResourceName =
   'projects' | 'clients' | 'testimonials' | 'services' | 'site-settings' | 'ratings'
-type AdminPermission = ResourceName | 'inquiries'
+type AdminPermission =
+  | ResourceName
+  | 'inquiries'
+  | 'create-admins'
+  | 'activity'
+  | 'blog-writing-requests'
+  | 'blog-writers'
+  | 'blog-post-review'
 type AdminRole = 'owner' | 'full' | 'limited' | 'custom'
 type AdminRecord = CmsRecord & {
-  adminNumber: number
+  adminNumber: string
   email: string
   role: AdminRole
   permissions: AdminPermission[]
   createdAt: string
+  loginHeld?: boolean
 }
 type InquiryStatusUpdate = { record: CmsRecord; status: string; comment: string }
-type AdminTab = ResourceName | 'inquiries' | 'admins' | 'activity'
+type AdminTab =
+  | ResourceName
+  | 'inquiries'
+  | 'admins'
+  | 'create-admin'
+  | 'activity'
+  | 'blog-requests'
+  | 'blog-authors'
+  | 'blog-posts'
 type CmsRecord = Record<string, unknown> & { _id: string }
 type Field = {
   name: string
@@ -306,7 +322,7 @@ const inquiryFields: Field[] = [
 ]
 
 const resources = Object.keys(resourceConfig) as ResourceName[]
-const permissionOptions: { key: AdminPermission; label: string }[] = [
+const permissionOptions: { key: AdminPermission; label: string; description?: string }[] = [
   { key: 'projects', label: 'Projects' },
   { key: 'clients', label: 'Clients' },
   { key: 'testimonials', label: 'Testimonials' },
@@ -314,6 +330,27 @@ const permissionOptions: { key: AdminPermission; label: string }[] = [
   { key: 'site-settings', label: 'Site settings' },
   { key: 'inquiries', label: 'Inquiries' },
   { key: 'ratings', label: 'Client ratings' },
+  {
+    key: 'create-admins',
+    label: 'Create admin accounts',
+    description: 'Create admins with permissions you hold',
+  },
+  { key: 'activity', label: 'View activity logs', description: 'Read recent admin activity' },
+  {
+    key: 'blog-writing-requests',
+    label: 'Blog writing requests',
+    description: 'Review applications and issue BLOG IDs with initial passwords',
+  },
+  {
+    key: 'blog-writers',
+    label: 'Blog writers',
+    description: 'View writer accounts and hold or restore their logins',
+  },
+  {
+    key: 'blog-post-review',
+    label: 'Blog post review',
+    description: 'Review submissions and publish or decline blog posts',
+  },
 ]
 const defaultAdminPermissions = permissionOptions.map((permission) => permission.key)
 const statusOptions = ['new', 'in_progress', 'closed']
@@ -340,9 +377,10 @@ export function AdminPage() {
     location.pathname.endsWith('/login') ? 'signed-out' : 'checking',
   )
   const [email, setEmail] = useState('')
-  const [adminNumber, setAdminNumber] = useState(0)
+  const [adminNumber, setAdminNumber] = useState('')
   const [role, setRole] = useState<AdminRole>('owner')
   const [permissions, setPermissions] = useState<AdminPermission[]>([])
+  const [loginIdentifier, setLoginIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [authError, setAuthError] = useState('')
 
@@ -350,7 +388,7 @@ export function AdminPage() {
     if (isLoginRoute) return
     apiRequest<{
       email: string
-      adminNumber: number
+      adminNumber: string
       role: AdminRole
       permissions: AdminPermission[]
     }>('/api/admin/auth/me')
@@ -374,12 +412,12 @@ export function AdminPage() {
     try {
       const admin = await apiRequest<{
         email: string
-        adminNumber: number
+        adminNumber: string
         role: AdminRole
         permissions: AdminPermission[]
       }>('/api/admin/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ identifier: loginIdentifier, password }),
       })
       setEmail(admin.email)
       setAdminNumber(admin.adminNumber)
@@ -409,17 +447,18 @@ export function AdminPage() {
           </span>
         </Link>
         <form className="admin-login-card" onSubmit={signIn}>
-          <span className="eyebrow">OWNER ACCESS</span>
+          <span className="eyebrow">ADMIN ACCESS</span>
           <h1>Welcome back.</h1>
           <p>Sign in to manage your studio website.</p>
           <label className="field">
-            <span>Email</span>
+            <span>Email or Employee ID</span>
             <input
-              type="email"
+              type="text"
               required
               autoComplete="username"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              placeholder="name@example.com or AZ1234"
+              value={loginIdentifier}
+              onChange={(event) => setLoginIdentifier(event.target.value)}
             />
           </label>
           <label className="field">
@@ -477,17 +516,30 @@ function AdminDashboard({
   onSignOut,
 }: {
   email: string
-  adminNumber: number
+  adminNumber: string
   role: AdminRole
   permissions: AdminPermission[]
   signOutError: string
   onSignOut: () => void
 }) {
+  const assignableAdminPermissions = role === 'owner' ? defaultAdminPermissions : permissions
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     if (role === 'owner' || role === 'full' || role === 'limited') return 'projects'
     return (
       resources.find((resource) => permissions.includes(resource)) ??
-      (permissions.includes('inquiries') ? 'inquiries' : 'projects')
+      (permissions.includes('inquiries')
+        ? 'inquiries'
+        : permissions.includes('create-admins')
+          ? 'create-admin'
+          : permissions.includes('activity')
+            ? 'activity'
+            : permissions.includes('blog-writing-requests')
+              ? 'blog-requests'
+              : permissions.includes('blog-writers')
+                ? 'blog-authors'
+                : permissions.includes('blog-post-review')
+                  ? 'blog-posts'
+                  : 'projects')
     )
   })
   const [records, setRecords] = useState<CmsRecord[]>([])
@@ -517,8 +569,14 @@ function AdminDashboard({
   const [newAdmin, setNewAdmin] = useState({
     email: '',
     password: '',
-    permissions: [...defaultAdminPermissions],
+    permissions: [...assignableAdminPermissions],
   })
+  const [writerPasswords, setWriterPasswords] = useState<Record<string, string>>({})
+  const [issuedWriterCredentials, setIssuedWriterCredentials] = useState<{
+    employeeId: string
+    email: string
+    password: string
+  } | null>(null)
   const [pendingInquiryUpdate, setPendingInquiryUpdate] = useState<InquiryStatusUpdate | null>(null)
   const [sendingInquiryNotification, setSendingInquiryNotification] = useState<string | null>(null)
 
@@ -537,6 +595,27 @@ function AdminDashboard({
         }
       } else if (activeTab === 'activity') {
         const items = await apiRequest<CmsRecord[]>('/api/admin/activity')
+        sectionCache.current.set(cacheKey, { items, pages: 1 })
+        if (currentRequestId === requestId.current) {
+          setRecords(items)
+          setContentPages(1)
+        }
+      } else if (activeTab === 'create-admin') {
+        if (currentRequestId === requestId.current) {
+          setRecords([])
+          setContentPages(1)
+        }
+      } else if (
+        activeTab === 'blog-requests' ||
+        activeTab === 'blog-authors' ||
+        activeTab === 'blog-posts'
+      ) {
+        const resource = activeTab === 'blog-requests' ? 'blog-writing-requests' : activeTab
+        const queryString =
+          activeTab === 'blog-posts' && statusFilter
+            ? `?${new URLSearchParams({ status: statusFilter })}`
+            : ''
+        const items = await apiRequest<CmsRecord[]>(`/api/admin/${resource}${queryString}`)
         sectionCache.current.set(cacheKey, { items, pages: 1 })
         if (currentRequestId === requestId.current) {
           setRecords(items)
@@ -627,11 +706,13 @@ function AdminDashboard({
   function selectTab(tab: AdminTab) {
     setActiveTab(tab)
     setEditing(null)
+    setForm({})
     setSearch('')
     setStatusFilter('')
     setContentPage(1)
     setLoading(!showCachedSection(tab, 1, ''))
     setError('')
+    if (tab !== 'blog-requests') setIssuedWriterCredentials(null)
   }
 
   function selectPage(page: number) {
@@ -790,7 +871,7 @@ function AdminDashboard({
 
   async function saveContent(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (activeTab === 'admins' || activeTab === 'activity') return
+    if (activeTab === 'admins' || activeTab === 'create-admin' || activeTab === 'activity') return
     const payload: Record<string, unknown> = { ...form }
     if (activeTab === 'projects') {
       if (!form.thumbnailUrl || !form.videoUrl || !form.thumbnailPublicId || !form.videoPublicId) {
@@ -819,7 +900,8 @@ function AdminDashboard({
       setError('Please correct the highlighted fields.')
       return
     }
-    const fields = activeTab === 'inquiries' ? inquiryFields : resourceConfig[activeTab].fields
+    const fields =
+      activeTab === 'inquiries' ? inquiryFields : resourceConfig[activeTab as ResourceName].fields
     for (const field of fields) {
       const value = payload[field.name]
       if (field.type === 'number' && value !== '' && field.name !== 'budget')
@@ -926,16 +1008,18 @@ function AdminDashboard({
     setNotice('')
     setFieldErrors({})
     try {
-      const createdAdmin = await apiRequest<{ adminNumber: number }>('/api/admin/admins', {
+      const createdAdmin = await apiRequest<{ adminNumber: string }>('/api/admin/admins', {
         method: 'POST',
         body: JSON.stringify(newAdmin),
       })
       setNewAdmin({
         email: '',
         password: '',
-        permissions: [...defaultAdminPermissions],
+        permissions: [...assignableAdminPermissions],
       })
-      setNotice(`Admin #${createdAdmin.adminNumber} created. Share its login details securely.`)
+      setNotice(
+        `Employee ${createdAdmin.adminNumber} created. They can sign in with this Employee ID or their email.`,
+      )
       setLoading(true)
       await loadData()
     } catch (requestError) {
@@ -990,6 +1074,139 @@ function AdminDashboard({
     }
   }
 
+  async function setAdminLoginHold(admin: AdminRecord) {
+    if (!admin.loginHeld && !window.confirm(`Put ${admin.email}'s login on hold?`)) return
+    const loginHeld = !admin.loginHeld
+    setError('')
+    try {
+      await apiRequest(`/api/admin/admins/${admin._id}/login-hold`, {
+        method: 'PATCH',
+        body: JSON.stringify({ loginHeld }),
+      })
+      setNotice(loginHeld ? `Login held for ${admin.email}.` : `Login restored for ${admin.email}.`)
+      setLoading(true)
+      await loadData()
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Could not change admin login access.',
+      )
+    }
+  }
+
+  async function reviewBlogRequest(record: CmsRecord, status: 'approved' | 'declined') {
+    setError('')
+    setNotice('')
+    try {
+      await apiRequest(`/api/admin/blog-writing-requests/${record._id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      })
+      setLoading(true)
+      setNotice(status === 'approved' ? 'Writing request approved.' : 'Writing request declined.')
+      await loadData()
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error ? requestError.message : 'Could not review the request.',
+      )
+    }
+  }
+
+  async function createBlogAuthor(record: CmsRecord) {
+    const authorPassword = writerPasswords[record._id] ?? ''
+    setError('')
+    setNotice('')
+    setFieldErrors({})
+    try {
+      const author = await apiRequest<{ employeeId: string }>('/api/admin/blog-authors', {
+        method: 'POST',
+        body: JSON.stringify({ requestId: record._id, password: authorPassword }),
+      })
+      setIssuedWriterCredentials({
+        employeeId: author.employeeId,
+        email: String(record.email),
+        password: authorPassword,
+      })
+      setWriterPasswords((current) => ({ ...current, [record._id]: '' }))
+      setLoading(true)
+      setNotice('Blog writer account created. Share the one-time credentials below securely.')
+      await loadData()
+    } catch (requestError) {
+      const hasFieldErrors = setRequestFieldErrors(requestError)
+      setError(
+        hasFieldErrors
+          ? 'Please correct the highlighted fields.'
+          : requestError instanceof Error
+            ? requestError.message
+            : 'Could not create the blog writer account.',
+      )
+    }
+  }
+
+  async function copyWriterCredentials() {
+    if (!issuedWriterCredentials) return
+    try {
+      await navigator.clipboard.writeText(
+        `BLOG Employee ID: ${issuedWriterCredentials.employeeId}\nEmail: ${issuedWriterCredentials.email}\nPassword: ${issuedWriterCredentials.password}`,
+      )
+      setNotice('Credentials copied. Share them with the writer using a secure channel.')
+      setError('')
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? `Could not copy credentials: ${requestError.message}`
+          : 'Could not copy credentials. Share the displayed values securely.',
+      )
+    }
+  }
+
+  async function setBlogAuthorLoginHold(record: CmsRecord) {
+    const loginHeld = !record.loginHeld
+    if (loginHeld && !window.confirm(`Put ${String(record.email)}'s blog writer login on hold?`))
+      return
+    setError('')
+    setNotice('')
+    try {
+      await apiRequest(`/api/admin/blog-authors/${record._id}/login-hold`, {
+        method: 'PATCH',
+        body: JSON.stringify({ loginHeld }),
+      })
+      setLoading(true)
+      setNotice(loginHeld ? 'Blog writer login placed on hold.' : 'Blog writer login restored.')
+      await loadData()
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Could not change blog writer login access.',
+      )
+    }
+  }
+
+  async function reviewBlogPost(record: CmsRecord, status: 'published' | 'declined') {
+    setError('')
+    setNotice('')
+    try {
+      await apiRequest(`/api/admin/blog-posts/${record._id}/review`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      })
+      setLoading(true)
+      setNotice(status === 'published' ? 'Article published.' : 'Article declined.')
+      await loadData()
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error ? requestError.message : 'Could not review the article.',
+      )
+    }
+  }
+
+  const canCreateAdmins = role === 'owner' || permissions.includes('create-admins')
+  const canViewActivity = role === 'owner' || permissions.includes('activity')
+  const canReviewBlogRequests = role === 'owner' || permissions.includes('blog-writing-requests')
+  const canManageBlogWriters = role === 'owner' || permissions.includes('blog-writers')
+  const canReviewBlogPosts = role === 'owner' || permissions.includes('blog-post-review')
   const hasPermission = (permission: AdminPermission) =>
     role === 'owner' ||
     role === 'full' ||
@@ -1001,13 +1218,13 @@ function AdminDashboard({
   const visibleResources = resources.filter((resource) => hasPermission(resource))
   const canManageInquiries = hasPermission('inquiries')
   const canEditActiveResource =
-    activeTab !== 'activity' &&
-    (role === 'owner' ||
-      role === 'full' ||
-      (role === 'limited' && ['projects', 'services'].includes(activeTab)) ||
-      (activeTab === 'inquiries'
-        ? permissions.includes('inquiries')
-        : activeTab !== 'admins' && permissions.includes(activeTab)))
+    activeTab === 'inquiries'
+      ? role === 'owner' || role === 'full' || permissions.includes('inquiries')
+      : resources.includes(activeTab as ResourceName) &&
+        (role === 'owner' ||
+          role === 'full' ||
+          (role === 'limited' && ['projects', 'services'].includes(activeTab)) ||
+          permissions.includes(activeTab as ResourceName))
 
   return (
     <div className="admin-app">
@@ -1027,7 +1244,7 @@ function AdminDashboard({
                 ? 'CUSTOM ADMIN'
                 : 'LIMITED ADMIN'}
         </span>
-        <span className="admin-number">ADMIN #{adminNumber}</span>
+        <span className="admin-number">EMPLOYEE ID · {adminNumber}</span>
         <nav aria-label="Admin sections">
           {visibleResources.map((resource) => (
             <button
@@ -1050,29 +1267,82 @@ function AdminDashboard({
               Inquiries <span className="admin-badge">{counts.newInquiries}</span>
             </button>
           )}
-          {role === 'owner' && (
+          {canCreateAdmins && role !== 'owner' && (
+            <button
+              type="button"
+              className={activeTab === 'create-admin' ? 'admin-nav-item active' : 'admin-nav-item'}
+              onClick={() => selectTab('create-admin')}
+            >
+              <Users size={16} />
+              Create admin
+            </button>
+          )}
+          {(role === 'owner' ||
+            canReviewBlogRequests ||
+            canManageBlogWriters ||
+            canReviewBlogPosts) && (
             <>
-              <button
-                type="button"
-                className={activeTab === 'admins' ? 'admin-nav-item active' : 'admin-nav-item'}
-                onClick={() => selectTab('admins')}
-              >
-                <Users size={16} />
-                Admin accounts
-              </button>
-              <button
-                type="button"
-                className={activeTab === 'activity' ? 'admin-nav-item active' : 'admin-nav-item'}
-                onClick={() => selectTab('activity')}
-              >
-                <History size={16} />
-                Activity log
-              </button>
+              {role === 'owner' && (
+                <button
+                  type="button"
+                  className={activeTab === 'admins' ? 'admin-nav-item active' : 'admin-nav-item'}
+                  onClick={() => selectTab('admins')}
+                >
+                  <Users size={16} />
+                  Admin accounts
+                </button>
+              )}
+              {canReviewBlogRequests && (
+                <button
+                  type="button"
+                  className={
+                    activeTab === 'blog-requests' ? 'admin-nav-item active' : 'admin-nav-item'
+                  }
+                  onClick={() => selectTab('blog-requests')}
+                >
+                  <Users size={16} />
+                  Blog writing requests
+                </button>
+              )}
+              {canManageBlogWriters && (
+                <button
+                  type="button"
+                  className={
+                    activeTab === 'blog-authors' ? 'admin-nav-item active' : 'admin-nav-item'
+                  }
+                  onClick={() => selectTab('blog-authors')}
+                >
+                  <Users size={16} />
+                  Blog writers
+                </button>
+              )}
+              {canReviewBlogPosts && (
+                <button
+                  type="button"
+                  className={
+                    activeTab === 'blog-posts' ? 'admin-nav-item active' : 'admin-nav-item'
+                  }
+                  onClick={() => selectTab('blog-posts')}
+                >
+                  <BriefcaseBusiness size={16} />
+                  Blog post review
+                </button>
+              )}
             </>
+          )}
+          {canViewActivity && (
+            <button
+              type="button"
+              className={activeTab === 'activity' ? 'admin-nav-item active' : 'admin-nav-item'}
+              onClick={() => selectTab('activity')}
+            >
+              <History size={16} />
+              Activity log
+            </button>
           )}
         </nav>
         <div className="admin-sidebar-bottom">
-          <span>Admin #{adminNumber}</span>
+          <span>Employee ID · {adminNumber}</span>
           <span>{email}</span>
           <button type="button" onClick={onSignOut}>
             <LogOut size={15} /> Sign out
@@ -1094,28 +1364,45 @@ function AdminDashboard({
               <h1>
                 {activeTab === 'admins'
                   ? 'Admin accounts'
-                  : activeTab === 'activity'
-                    ? 'Admin activity log'
-                    : activeTab === 'inquiries'
-                      ? 'Project inquiries'
-                      : activeTab === 'site-settings'
-                        ? 'Site settings'
-                        : resourceConfig[activeTab].label}
+                  : activeTab === 'create-admin'
+                    ? 'Create admin account'
+                    : activeTab === 'activity'
+                      ? 'Admin activity log'
+                      : activeTab === 'inquiries'
+                        ? 'Project inquiries'
+                        : activeTab === 'blog-requests'
+                          ? 'Blog writing requests'
+                          : activeTab === 'blog-authors'
+                            ? 'Blog writers'
+                            : activeTab === 'blog-posts'
+                              ? 'Blog post review'
+                              : resourceConfig[activeTab as ResourceName].label}
               </h1>
               <p>
                 {activeTab === 'activity'
                   ? 'Review who created, changed, uploaded, or deleted dashboard content.'
-                  : 'Manage the content that appears on your public website.'}
+                  : activeTab === 'create-admin'
+                    ? 'Create an admin account and grant only the sections you are allowed to assign.'
+                    : activeTab === 'blog-requests'
+                      ? 'Review contributor applications and approve writers before issuing their BLOG employee ID.'
+                      : activeTab === 'blog-authors'
+                        ? 'Manage writer accounts and place a writer login on hold when needed.'
+                        : activeTab === 'blog-posts'
+                          ? 'Review every writer submission. Articles become public only after owner approval.'
+                          : 'Manage the content that appears on your public website.'}
               </p>
             </div>
-            {activeTab !== 'admins' && activeTab !== 'activity' && canEditActiveResource && (
-              <button className="button button-accent" type="button" onClick={() => openCreate()}>
-                <Plus size={16} /> Add{' '}
-                {activeTab === 'inquiries'
-                  ? 'inquiry'
-                  : resourceConfig[activeTab].label.replace(/s$/, '')}
-              </button>
-            )}
+            {activeTab !== 'admins' &&
+              activeTab !== 'create-admin' &&
+              activeTab !== 'activity' &&
+              canEditActiveResource && (
+                <button className="button button-accent" type="button" onClick={() => openCreate()}>
+                  <Plus size={16} /> Add{' '}
+                  {activeTab === 'inquiries'
+                    ? 'inquiry'
+                    : resourceConfig[activeTab as ResourceName].label.replace(/s$/, '')}
+                </button>
+              )}
           </div>
           <div className={`admin-stats${!canManageInquiries ? ' limited-admin-stats' : ''}`}>
             <div>
@@ -1141,16 +1428,20 @@ function AdminDashboard({
           </div>
 
           {activeTab !== 'admins' &&
+            activeTab !== 'create-admin' &&
             activeTab !== 'activity' &&
             activeTab !== 'inquiries' &&
             canEditActiveResource &&
-            resourceConfig[activeTab].sample && (
+            resourceConfig[activeTab as ResourceName].sample && (
               <aside className="admin-example">
                 <div>
                   <span className="eyebrow">QUICK EXAMPLE</span>
-                  <p>{resourceConfig[activeTab].sample.description}</p>
+                  <p>{resourceConfig[activeTab as ResourceName].sample?.description}</p>
                 </div>
-                <button type="button" onClick={() => openCreate(resourceConfig[activeTab].sample)}>
+                <button
+                  type="button"
+                  onClick={() => openCreate(resourceConfig[activeTab as ResourceName].sample)}
+                >
                   Use this sample
                 </button>
               </aside>
@@ -1167,19 +1458,20 @@ function AdminDashboard({
             </p>
           )}
 
-          {activeTab === 'admins' ? (
+          {activeTab === 'admins' || activeTab === 'create-admin' ? (
             <section className="admin-editor">
               <div className="admin-editor-heading">
                 <div>
-                  <span className="eyebrow">OWNER ONLY</span>
+                  <span className="eyebrow">CREATE ADMIN ACCOUNT</span>
                   <h2>Create an admin account</h2>
                   <p>Select each section this admin may view and edit.</p>
                   <p>
-                    Each account receives a unique admin number, which is recorded with its actions.
+                    Each account receives a unique AZ-prefixed Employee ID, which is recorded with
+                    its actions.
                   </p>
                   <p>
-                    All content sections are enabled by default. You can limit access here or change
-                    it later; admin account management remains owner-only.
+                    You can only grant permissions that you hold. Admin account management remains
+                    owner-only.
                   </p>
                 </div>
               </div>
@@ -1229,23 +1521,25 @@ function AdminDashboard({
                   <fieldset className="admin-permission-fieldset field-full">
                     <legend className="eyebrow">SECTION PERMISSIONS</legend>
                     <div className="admin-permission-grid">
-                      {permissionOptions.map((permission) => (
-                        <label className="admin-permission-option" key={permission.key}>
-                          <input
-                            type="checkbox"
-                            checked={newAdmin.permissions.includes(permission.key)}
-                            onChange={(event) => {
-                              clearFieldError('permissions')
-                              const next = event.target.checked
-                                ? [...newAdmin.permissions, permission.key]
-                                : newAdmin.permissions.filter((item) => item !== permission.key)
-                              setNewAdmin({ ...newAdmin, permissions: next })
-                            }}
-                          />
-                          <span>{permission.label}</span>
-                          <small>View and edit</small>
-                        </label>
-                      ))}
+                      {permissionOptions
+                        .filter((permission) => assignableAdminPermissions.includes(permission.key))
+                        .map((permission) => (
+                          <label className="admin-permission-option" key={permission.key}>
+                            <input
+                              type="checkbox"
+                              checked={newAdmin.permissions.includes(permission.key)}
+                              onChange={(event) => {
+                                clearFieldError('permissions')
+                                const next = event.target.checked
+                                  ? [...newAdmin.permissions, permission.key]
+                                  : newAdmin.permissions.filter((item) => item !== permission.key)
+                                setNewAdmin({ ...newAdmin, permissions: next })
+                              }}
+                            />
+                            <span>{permission.label}</span>
+                            <small>{permission.description ?? 'View and edit'}</small>
+                          </label>
+                        ))}
                     </div>
                     {fieldErrors.permissions && (
                       <small className="field-error" role="alert">
@@ -1302,7 +1596,7 @@ function AdminDashboard({
                           }}
                         />
                         <span>{permission.label}</span>
-                        <small>View and edit</small>
+                        <small>{permission.description ?? 'View and edit'}</small>
                       </label>
                     ))}
                   </div>
@@ -1326,7 +1620,9 @@ function AdminDashboard({
           ) : null}
 
           {activeTab !== 'admins' &&
+          activeTab !== 'create-admin' &&
           activeTab !== 'activity' &&
+          !activeTab.startsWith('blog-') &&
           (editing !== null || Object.keys(form).length > 0) ? (
             <form className="admin-editor" onSubmit={saveContent}>
               <div className="admin-editor-heading">
@@ -1512,17 +1808,58 @@ function AdminDashboard({
             </form>
           ) : null}
 
-          <div className="admin-list-tools">
+          {activeTab === 'blog-requests' && (
+            <section className="blog-admin-guide">
+              <span className="eyebrow">ISSUING WRITER ACCESS</span>
+              <p>
+                Approve a request, set a password of at least 12 characters, then create the
+                account. The system generates a unique <strong>BLOG####</strong> Employee ID.
+                Passwords are stored as hashes and cannot be viewed again after this one-time
+                handoff.
+              </p>
+              {issuedWriterCredentials && (
+                <div className="blog-issued-credentials">
+                  <div>
+                    <strong>Share these credentials securely</strong>
+                    <span>BLOG Employee ID: {issuedWriterCredentials.employeeId}</span>
+                    <span>Email: {issuedWriterCredentials.email}</span>
+                    <span>Password: {issuedWriterCredentials.password}</span>
+                  </div>
+                  <div className="admin-row-actions">
+                    <button type="button" onClick={() => void copyWriterCredentials()}>
+                      Copy credentials
+                    </button>
+                    <button
+                      type="button"
+                      className="danger-action"
+                      onClick={() => setIssuedWriterCredentials(null)}
+                    >
+                      Hide credentials
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+          <div className="admin-list-tools" hidden={activeTab === 'create-admin'}>
             <input
               type="search"
               placeholder={`Search ${
                 activeTab === 'admins'
                   ? 'admin accounts'
-                  : activeTab === 'activity'
-                    ? 'activity'
-                    : activeTab === 'inquiries'
-                      ? 'inquiries'
-                      : resourceConfig[activeTab].label.toLowerCase()
+                  : activeTab === 'create-admin'
+                    ? 'admin accounts'
+                    : activeTab === 'activity'
+                      ? 'activity'
+                      : activeTab === 'inquiries'
+                        ? 'inquiries'
+                        : activeTab === 'blog-requests'
+                          ? 'blog writing requests'
+                          : activeTab === 'blog-authors'
+                            ? 'blog writers'
+                            : activeTab === 'blog-posts'
+                              ? 'blog posts'
+                              : resourceConfig[activeTab as ResourceName].label.toLowerCase()
               }…`}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -1531,7 +1868,8 @@ function AdminDashboard({
             {activeTab !== 'admins' &&
               (activeTab === 'projects' ||
                 activeTab === 'testimonials' ||
-                activeTab === 'inquiries') && (
+                activeTab === 'inquiries' ||
+                activeTab === 'blog-posts') && (
                 <select
                   aria-label="Filter by status"
                   value={statusFilter}
@@ -1542,7 +1880,9 @@ function AdminDashboard({
                     ? ['draft', 'published']
                     : activeTab === 'testimonials'
                       ? ['draft', 'approved', 'archived']
-                      : statusOptions
+                      : activeTab === 'blog-posts'
+                        ? ['pending', 'published', 'declined']
+                        : statusOptions
                   ).map((status) => (
                     <option key={status} value={status}>
                       {status.charAt(0).toUpperCase() + status.slice(1).replaceAll('_', ' ')}
@@ -1551,7 +1891,7 @@ function AdminDashboard({
                 </select>
               )}
           </div>
-          <div className="admin-table-wrap">
+          <div className="admin-table-wrap" hidden={activeTab === 'create-admin'}>
             {loading ? (
               <p className="admin-empty">Loading content…</p>
             ) : activeRecords.length === 0 ? (
@@ -1560,13 +1900,19 @@ function AdminDashboard({
                   ? 'No admin activity has been recorded yet.'
                   : activeTab === 'inquiries'
                     ? 'No inquiries yet.'
-                    : 'No content found. Use the button above to add the first item.'}
+                    : activeTab === 'blog-requests'
+                      ? 'No blog writing requests have been received.'
+                      : activeTab === 'blog-authors'
+                        ? 'No blog writer accounts have been created.'
+                        : activeTab === 'blog-posts'
+                          ? 'No articles have been submitted for review.'
+                          : 'No content found. Use the button above to add the first item.'}
               </p>
             ) : activeTab === 'activity' ? (
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>Admin</th>
+                    <th>Employee ID</th>
                     <th>Action</th>
                     <th>Content</th>
                     <th>Changed fields</th>
@@ -1577,7 +1923,7 @@ function AdminDashboard({
                   {activeRecords.map((item) => (
                     <tr key={item._id}>
                       <td>
-                        <strong>Admin #{String(item.actorAdminNumber)}</strong>
+                        <strong>{String(item.actorAdminNumber)}</strong>
                         <small>{String(item.actorEmail)}</small>
                       </td>
                       <td>
@@ -1605,8 +1951,9 @@ function AdminDashboard({
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>Admin #</th>
+                    <th>Employee ID</th>
                     <th>Email</th>
+                    <th>Login</th>
                     <th>Permissions</th>
                     <th>Created</th>
                     <th>Actions</th>
@@ -1618,10 +1965,15 @@ function AdminDashboard({
                     return (
                       <tr key={admin._id}>
                         <td>
-                          <strong>#{admin.adminNumber}</strong>
+                          <strong>{admin.adminNumber}</strong>
                         </td>
                         <td>
                           <strong>{admin.email}</strong>
+                        </td>
+                        <td>
+                          <span className="status-pill">
+                            {admin.loginHeld ? 'On hold' : 'Active'}
+                          </span>
                         </td>
                         <td>
                           {admin.role === 'owner' ? (
@@ -1642,6 +1994,9 @@ function AdminDashboard({
                         <td>
                           {admin.role !== 'owner' && admin.email !== email ? (
                             <div className="admin-row-actions">
+                              <button type="button" onClick={() => void setAdminLoginHold(admin)}>
+                                {admin.loginHeld ? 'Restore login' : 'Hold login'}
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1666,6 +2021,191 @@ function AdminDashboard({
                       </tr>
                     )
                   })}
+                </tbody>
+              </table>
+            ) : activeTab === 'blog-requests' ? (
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Applicant</th>
+                    <th>Experience / motivation</th>
+                    <th>Status</th>
+                    <th>Review / account</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeRecords.map((record) => (
+                    <tr key={record._id}>
+                      <td>
+                        <strong>{String(record.name)}</strong>
+                        <small>{String(record.email)}</small>
+                        <small>{String(record.contactNumber)}</small>
+                        <small>
+                          {String(record.socialPlatform)} · {String(record.yearsExperience)} years
+                        </small>
+                      </td>
+                      <td className="blog-admin-motivation">{String(record.motivation)}</td>
+                      <td>
+                        <span className="status-pill">{String(record.status)}</span>
+                      </td>
+                      <td>
+                        {record.status === 'pending' ? (
+                          <div className="admin-row-actions">
+                            <button
+                              type="button"
+                              onClick={() => void reviewBlogRequest(record, 'approved')}
+                            >
+                              Approve request
+                            </button>
+                            <button
+                              type="button"
+                              className="danger-action"
+                              onClick={() => void reviewBlogRequest(record, 'declined')}
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        ) : record.status === 'approved' ? (
+                          <div className="blog-account-issue">
+                            <label className="field">
+                              <span>Set initial password (12+ characters)</span>
+                              <input
+                                type="password"
+                                minLength={12}
+                                autoComplete="new-password"
+                                value={writerPasswords[record._id] ?? ''}
+                                aria-invalid={Boolean(fieldErrors.password)}
+                                onChange={(event) => {
+                                  clearFieldError('password')
+                                  setWriterPasswords((current) => ({
+                                    ...current,
+                                    [record._id]: event.target.value,
+                                  }))
+                                }}
+                              />
+                              {fieldErrors.password && (
+                                <small className="field-error" role="alert">
+                                  {fieldErrors.password}
+                                </small>
+                              )}
+                            </label>
+                            <button
+                              type="button"
+                              disabled={(writerPasswords[record._id] ?? '').length < 12}
+                              onClick={() => void createBlogAuthor(record)}
+                            >
+                              Create BLOG ID and account
+                            </button>
+                            <small>
+                              Share the generated ID and password with the approved writer securely.
+                            </small>
+                          </div>
+                        ) : (
+                          <span>
+                            {record.status === 'account_created'
+                              ? 'Writer account issued'
+                              : 'No action'}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : activeTab === 'blog-authors' ? (
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>BLOG Employee ID</th>
+                    <th>Writer</th>
+                    <th>Login</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeRecords.map((record) => (
+                    <tr key={record._id}>
+                      <td>
+                        <strong>{String(record.employeeId)}</strong>
+                      </td>
+                      <td>
+                        <strong>{String(record.name)}</strong>
+                        <small>{String(record.email)}</small>
+                      </td>
+                      <td>
+                        <span className="status-pill">
+                          {record.loginHeld ? 'On hold' : 'Active'}
+                        </span>
+                      </td>
+                      <td>
+                        {typeof record.createdAt === 'string'
+                          ? new Date(record.createdAt).toLocaleDateString()
+                          : '—'}
+                      </td>
+                      <td>
+                        <button type="button" onClick={() => void setBlogAuthorLoginHold(record)}>
+                          {record.loginHeld ? 'Restore login' : 'Hold login'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : activeTab === 'blog-posts' ? (
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Article</th>
+                    <th>Author</th>
+                    <th>Status</th>
+                    <th>Review</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeRecords.map((record) => (
+                    <tr key={record._id}>
+                      <td className="blog-admin-article">
+                        <strong>{String(record.title)}</strong>
+                        <small>{String(record.category)}</small>
+                        <p>{String(record.excerpt)}</p>
+                        <details>
+                          <summary>Read full submission</summary>
+                          <p>{String(record.content)}</p>
+                        </details>
+                      </td>
+                      <td>
+                        <strong>{String(record.authorName)}</strong>
+                        <small>{String(record.slug)}</small>
+                      </td>
+                      <td>
+                        <span className="status-pill">{String(record.status)}</span>
+                      </td>
+                      <td>
+                        {record.status === 'pending' ? (
+                          <div className="admin-row-actions">
+                            <button
+                              type="button"
+                              onClick={() => void reviewBlogPost(record, 'published')}
+                            >
+                              Approve & publish
+                            </button>
+                            <button
+                              type="button"
+                              className="danger-action"
+                              onClick={() => void reviewBlogPost(record, 'declined')}
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        ) : (
+                          <span>
+                            {record.reviewedBy ? `Reviewed by ${String(record.reviewedBy)}` : '—'}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             ) : activeTab === 'inquiries' ? (
@@ -1870,7 +2410,7 @@ function AdminDashboard({
               </table>
             )}
           </div>
-          {!loading && contentPages > 1 && (
+          {activeTab !== 'create-admin' && !loading && contentPages > 1 && (
             <div className="pagination admin-pagination">
               <button
                 type="button"

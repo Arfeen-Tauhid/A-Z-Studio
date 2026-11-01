@@ -35,7 +35,7 @@ In PowerShell, use `npm.cmd` instead of `npm` if script execution is restricted.
    npm.cmd run seed-services --workspace Backend
    ```
 
-5. Provision the first owner account from a secure terminal. Admin login uses an email address (not a username). Set `BOOTSTRAP_ADMIN_EMAIL` and a unique, temporary password of at least 12 characters in `Backend\.env` for this one-time command, then remove those bootstrap values after provisioning. Do not use a shared or predictable password:
+5. Provision the first owner account from a secure terminal. Admin login accepts the account email or its AZ-prefixed four-digit admin number. Set `BOOTSTRAP_ADMIN_EMAIL` and a unique, temporary password of at least 12 characters in `Backend\.env` for this one-time command, then remove those bootstrap values after provisioning. Do not use a shared or predictable password:
 
    ```powershell
    npm.cmd run create-admin --workspace Backend
@@ -43,7 +43,7 @@ In PowerShell, use `npm.cmd` instead of `npm` if script execution is restricted.
 
    Open `http://localhost:5173/admin/login` to access the CMS. There is no public admin registration route.
 
-   The owner can create additional accounts from **Admin accounts** in the dashboard. Select the sections each admin may view and edit. Unchecked sections are blocked. Admin account management remains owner-only; removing an account immediately invalidates its sessions.
+   The owner can create additional accounts from **Admin accounts** in the dashboard. Select the sections each admin may view and edit. The **Create admin accounts** and **View activity logs** permissions can be granted separately. Admins who can create accounts can only grant permissions they themselves hold. Account permission changes, login holds, and account removal remain owner-only. A login hold immediately blocks new sign-ins and requests from existing sessions until the owner restores access.
 
 ## Checks and production build
 
@@ -56,9 +56,13 @@ npm.cmd run format:check
 
 ## Content management
 
+Public content API responses are browser-cacheable for 60 seconds and may be served stale for up to five minutes while revalidating. Inquiry-status lookups are excluded. Vercel caches fingerprinted JavaScript/CSS assets for one year and revalidates the app shell and SPA routes; 3D model files are cached for one day. Project and client videos are loaded and played only as they approach the viewport, and paused when scrolled away.
+
 The dashboard at `/admin` manages projects, client showcases, testimonials, services, site settings, inquiries, and client ratings. Site settings can configure the studio email, contact number, Discord ID, and social links shown in the site footer. Authorized admins can create, edit, and delete inquiries (including inquiries received by phone or message) and ratings. Client showcases can include a video, a video thumbnail, an approved feedback screenshot, and a social platform handle. Draft and archived projects are excluded from public portfolio APIs. Only approved testimonials and published client profiles are public. Visitors can submit a one-to-five-star studio rating with their name and social platform ID; those details are stored privately and are not included in the public rating summary. Publish client feedback and profiles only after obtaining permission.
 
-Each admin has a permanent sequential admin number. The owner-only **Activity log** records successful content creation, edits, deletions, uploads, and admin-account changes with the acting admin number, account email, affected item, changed field names, and timestamp. It shows the 100 most recent recorded actions; activity from before this feature was enabled is not available.
+Each admin has a permanent, unique AZ-prefixed four-digit Employee ID. Admins can sign in with that ID or their email. The **Activity log** records successful content creation, edits, deletions, uploads, and account changes with the acting Employee ID, account email, affected item, changed field names, and timestamp. Access can be granted independently from **Admin accounts**. It shows the 100 most recent recorded actions; activity from before this feature was enabled is not available.
+
+The public **Blogs** page is focused on articles, with **Newly Posted**, **Most Viewed**, and **Most Liked** lists. Readers can filter posts by a writer's `BLOG` plus four-digit Employee ID. Views are counted once per browser tab session, and a browser can like each article once using its local preference store. Visitors can request writer access with their experience and contact details. In **Blog writing requests**, an admin with that permission approves a request, chooses an initial password of at least 12 characters, then creates the account; the system generates its unique `BLOG####` Employee ID. The ID and password are shown once in the dashboard for secure sharing; only the password hash is retained. Writers sign in using the ID or email, then submit articles for review. Admins granted **Blog post review** can publish or decline submissions; **Blog writers** permission allows managing writer login holds. These permissions are separately assignable from **Admin accounts**.
 
 Project video and image fields accept delivered media URLs or signed Cloudinary uploads when Cloudinary credentials and a restricted signed upload preset are configured. The API verifies uploaded asset folder, media type, format, and size with Cloudinary, and deletes rejected assets. Uploaded videos are delivered as H.264/AAC MP4s so an audio track in the source is preserved and broadly browser-compatible; the source file must contain audio for playback to have sound. Video previews start muted, and visitors can turn sound on with the speaker control. Configure the preset to enforce allowed formats and maximum file sizes during upload as well. The Cloudinary API secret remains server-only. Replaced and removed assets may require manual cleanup in Cloudinary.
 

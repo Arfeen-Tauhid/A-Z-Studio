@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { apiRequest, type PageResult } from '../lib/api'
 import { sendStudioInquiryNotification } from '../lib/emailjs'
+import { youtubeVideoId } from '../lib/youtube'
 
 type ResourceName =
   'projects' | 'clients' | 'testimonials' | 'services' | 'site-settings' | 'ratings'
@@ -80,6 +81,7 @@ const resourceConfig: Record<
         clientName: 'Northstar Coffee',
         description:
           'A warm launch film introducing Northstar Coffee and the people behind every cup.',
+        mediaMode: 'youtube',
         videoUrl: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
         status: 'draft',
       },
@@ -108,11 +110,30 @@ const resourceConfig: Record<
         required: true,
       },
       {
+        name: 'mediaMode',
+        label: 'Video and thumbnail',
+        type: 'select',
+        options: ['youtube', 'upload'],
+        helpText: 'Choose a YouTube link or upload your own thumbnail image and video file.',
+      },
+      {
+        name: 'thumbnailUrl',
+        label: 'Thumbnail image',
+        type: 'media',
+        mediaResource: 'image',
+      },
+      {
+        name: 'thumbnailPublicId',
+        label: 'Thumbnail storage ID',
+        hidden: true,
+      },
+      {
         name: 'videoUrl',
         label: 'YouTube video link',
-        type: 'url',
-        helpText: 'Paste a YouTube video link. Its thumbnail is added automatically.',
+        type: 'media',
+        mediaResource: 'video',
       },
+      { name: 'videoPublicId', label: 'Video storage ID', hidden: true },
       {
         name: 'status',
         label: 'Publication status',
@@ -683,8 +704,8 @@ function AdminDashboard({
 
   function openEdit(record: CmsRecord) {
     setEditing(record)
-    setForm(
-      Object.fromEntries(
+    setForm({
+      ...Object.fromEntries(
         (activeTab === 'inquiries'
           ? inquiryFields
           : resourceConfig[activeTab as ResourceName].fields
@@ -698,7 +719,18 @@ function AdminDashboard({
           ]
         }),
       ),
-    )
+      ...(activeTab === 'projects'
+        ? {
+            mediaMode:
+              typeof record.videoUrl === 'string' && youtubeVideoId(record.videoUrl)
+                ? 'youtube'
+                : 'upload',
+            thumbnailPublicId:
+              typeof record.thumbnailPublicId === 'string' ? record.thumbnailPublicId : '',
+            videoPublicId: typeof record.videoPublicId === 'string' ? record.videoPublicId : '',
+          }
+        : {}),
+    })
     setError('')
     setNotice('')
   }
@@ -707,6 +739,13 @@ function AdminDashboard({
     event.preventDefault()
     if (activeTab === 'admins') return
     const payload: Record<string, unknown> = { ...form }
+    if (activeTab === 'projects') {
+      if (form.mediaMode === 'upload' && (!form.thumbnailUrl || !form.videoUrl)) {
+        setError('Manual upload requires both a thumbnail image and a video file.')
+        return
+      }
+      delete payload.mediaMode
+    }
     const fields = activeTab === 'inquiries' ? inquiryFields : resourceConfig[activeTab].fields
     for (const field of fields) {
       const value = payload[field.name]
@@ -1100,34 +1139,79 @@ function AdminDashboard({
                   ? inquiryFields
                   : resourceConfig[activeTab as ResourceName].fields
                 )
-                  .filter((field) => !field.hidden)
+                  .filter(
+                    (field) =>
+                      !field.hidden &&
+                      !(
+                        activeTab === 'projects' &&
+                        field.name === 'thumbnailUrl' &&
+                        form.mediaMode !== 'upload'
+                      ),
+                  )
                   .map((field) => (
                     <label
                       className={`field ${field.type === 'textarea' ? 'field-full' : ''}`}
                       key={field.name}
                     >
-                      <span>{field.label}</span>
+                      <span>
+                        {activeTab === 'projects' && field.name === 'videoUrl'
+                          ? form.mediaMode === 'upload'
+                            ? 'Video file'
+                            : 'YouTube video link'
+                          : field.label}
+                      </span>
                       {field.type === 'textarea' ? (
                         <textarea
                           rows={4}
                           required={field.required}
                           value={String(form[field.name] ?? '')}
                           onChange={(event) =>
-                            setForm({ ...form, [field.name]: event.target.value })
+                            setForm({
+                              ...form,
+                              ...(activeTab === 'projects' && field.name === 'mediaMode'
+                                ? {
+                                    mediaMode: event.target.value,
+                                    thumbnailUrl: '',
+                                    thumbnailPublicId: '',
+                                    videoUrl: '',
+                                    videoPublicId: '',
+                                  }
+                                : { [field.name]: event.target.value }),
+                            })
                           }
                         />
                       ) : field.type === 'select' ? (
                         <select
-                          required={field.required}
-                          value={String(form[field.name] ?? field.options?.[0] ?? '')}
-                          onChange={(event) =>
-                            setForm({ ...form, [field.name]: event.target.value })
+                          required={
+                            field.required ||
+                            (activeTab === 'projects' &&
+                              field.name === 'mediaMode' &&
+                              !form.mediaMode)
                           }
+                          value={String(form[field.name] ?? field.options?.[0] ?? '')}
+                          onChange={(event) => {
+                            if (activeTab === 'projects' && field.name === 'mediaMode') {
+                              setForm({
+                                ...form,
+                                mediaMode: event.target.value,
+                                thumbnailUrl: '',
+                                thumbnailPublicId: '',
+                                videoUrl: '',
+                                videoPublicId: '',
+                              })
+                            } else {
+                              setForm({ ...form, [field.name]: event.target.value })
+                            }
+                          }}
                         >
                           {field.options?.map((option) => (
                             <option key={option} value={option}>
-                              {option.charAt(0).toUpperCase() +
-                                option.slice(1).replaceAll('_', ' ')}
+                              {activeTab === 'projects' && field.name === 'mediaMode'
+                                ? option === 'youtube'
+                                  ? 'YouTube link'
+                                  : 'Manual upload'
+                                : option.charAt(0).toUpperCase() +
+                                  option.slice(1).replaceAll('_', ' ')}
                             </option>
                           ))}
                           {activeTab === 'projects' && editing && form.status === 'archived' && (
@@ -1142,16 +1226,26 @@ function AdminDashboard({
                             setForm({ ...form, [field.name]: event.target.checked })
                           }
                         />
-                      ) : field.type === 'media' ? (
+                      ) : field.type === 'media' &&
+                        !(
+                          activeTab === 'projects' &&
+                          field.name === 'videoUrl' &&
+                          form.mediaMode === 'youtube'
+                        ) ? (
                         <>
                           <input
                             type="url"
-                            placeholder="Paste a media URL or upload a file"
+                            placeholder={
+                              activeTab === 'projects'
+                                ? 'Upload a video file'
+                                : 'Paste a media URL or upload a file'
+                            }
                             value={String(form[field.name] ?? '')}
                             onChange={(event) => {
                               const idField = field.name.replace('Url', 'PublicId')
                               setForm({ ...form, [field.name]: event.target.value, [idField]: '' })
                             }}
+                            readOnly={activeTab === 'projects'}
                           />
                           <input
                             type="file"
@@ -1164,8 +1258,23 @@ function AdminDashboard({
                             onChange={(event) => void uploadMedia(field, event.target.files?.[0])}
                             aria-label={`Upload ${field.label}`}
                           />
+                          {activeTab === 'projects' && field.name === 'videoUrl' && (
+                            <small>
+                              MP4, WebM, or MOV. Upload both this video and a thumbnail.
+                            </small>
+                          )}
                           {uploadingField === field.name && <small>Uploading securely…</small>}
                         </>
+                      ) : activeTab === 'projects' && field.name === 'videoUrl' ? (
+                        <input
+                          type="url"
+                          required
+                          placeholder="https://www.youtube.com/watch?v=..."
+                          value={String(form[field.name] ?? '')}
+                          onChange={(event) =>
+                            setForm({ ...form, [field.name]: event.target.value })
+                          }
+                        />
                       ) : (
                         <input
                           type={field.type ?? 'text'}

@@ -178,37 +178,30 @@ const resourceConfig: Record<
   testimonials: {
     label: 'Testimonials',
     sample: {
-      description: 'Client: Alex Morgan · Role: Founder · Rating: 5 stars',
+      description: 'Client: Alex Morgan · Country: USA · Channel: Northstar Coffee',
       values: {
         clientName: 'Alex Morgan',
-        role: 'Founder',
-        company: 'Northstar Coffee',
+        clientCountry: 'United States',
+        clientChannelName: 'Northstar Coffee',
         quote:
           'The team understood our vision right away and turned it into a story we are proud to share.',
         rating: '5',
-        status: 'approved',
       },
     },
     fields: [
-      { name: 'clientName', label: 'Client name' },
-      { name: 'role', label: 'Role or creator category' },
-      { name: 'company', label: 'Company or channel' },
-      { name: 'quote', label: 'Approved quote', type: 'textarea' },
+      { name: 'clientName', label: 'Client name', required: true },
+      { name: 'clientCountry', label: 'Client country', required: true },
+      { name: 'clientChannelName', label: 'Client channel name', required: true },
+      { name: 'quote', label: 'Approved quote', type: 'textarea', required: true },
       {
-        name: 'profileImageUrl',
-        label: 'Approved profile image',
+        name: 'commentScreenshotUrl',
+        label: 'Screenshot of feedback comment',
         type: 'media',
         mediaResource: 'image',
+        required: true,
       },
-      { name: 'profileImagePublicId', label: 'Profile image storage ID', hidden: true },
-      { name: 'sourceUrl', label: 'Public source URL', type: 'url' },
-      { name: 'rating', label: 'Rating (only if supplied)', type: 'number' },
-      {
-        name: 'status',
-        label: 'Approval status',
-        type: 'select',
-        options: ['draft', 'approved', 'archived'],
-      },
+      { name: 'commentScreenshotPublicId', label: 'Feedback screenshot storage ID', hidden: true },
+      { name: 'rating', label: 'Rating', type: 'number', min: 1, max: 5, required: true },
     ],
   },
   services: {
@@ -745,6 +738,16 @@ function AdminDashboard({
         return
       }
       delete payload.mediaMode
+    }
+    if (
+      activeTab === 'testimonials' &&
+      (!form.commentScreenshotUrl ||
+        !form.rating ||
+        Number(form.rating) < 1 ||
+        Number(form.rating) > 5)
+    ) {
+      setError('Add the feedback screenshot and a rating from 1 to 5.')
+      return
     }
     const fields = activeTab === 'inquiries' ? inquiryFields : resourceConfig[activeTab].fields
     for (const field of fields) {

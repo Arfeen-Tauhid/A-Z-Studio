@@ -195,7 +195,7 @@ app.get('/api/public/clients', async (_request, response) => {
 
 app.get('/api/public/testimonials', async (_request, response) => {
   const items = await TestimonialModel.find({ status: 'approved' })
-    .select('-profileImagePublicId -__v')
+    .select('-profileImagePublicId -commentScreenshotPublicId -__v')
     .sort({ createdAt: -1 })
     .lean()
   sendData(response, items)
@@ -566,7 +566,10 @@ const testimonialsResource: ContentResource = {
     return { items, total }
   },
   async create(input) {
-    return TestimonialModel.create(testimonialSchema.parse(input))
+    return TestimonialModel.create({
+      ...testimonialSchema.parse(input),
+      status: 'approved',
+    })
   },
   async update(id, input) {
     const parsed = testimonialSchema

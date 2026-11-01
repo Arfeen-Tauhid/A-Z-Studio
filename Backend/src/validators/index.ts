@@ -154,13 +154,17 @@ export const clientSchema = z.object({
 
 export const testimonialSchema = z.object({
   clientName: z.string().trim().min(1).max(160),
+  clientCountry: z.string().trim().min(1).max(100),
+  clientChannelName: z.string().trim().min(1).max(160),
+  commentScreenshotUrl: webUrl,
+  commentScreenshotPublicId: optionalText(300),
   role: optionalText(160),
   company: optionalText(160),
   quote: z.string().trim().min(1).max(2000),
   profileImageUrl: url,
   profileImagePublicId: optionalText(300),
   sourceUrl: url,
-  rating: z.number().int().min(1).max(5).optional(),
+  rating: z.number().int().min(1).max(5),
   status: z.enum(['draft', 'approved', 'archived']).default('draft'),
 })
 

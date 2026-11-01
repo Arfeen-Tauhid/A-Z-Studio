@@ -60,13 +60,17 @@ const clientSchema = new Schema(
 const testimonialSchema = new Schema(
   {
     clientName: { type: String, required: true, trim: true, maxlength: 160 },
+    clientCountry: { type: String, required: true, trim: true, maxlength: 100 },
+    clientChannelName: { type: String, required: true, trim: true, maxlength: 160 },
+    commentScreenshotUrl: { type: String, required: true, trim: true, maxlength: 2048 },
+    commentScreenshotPublicId: { type: String, trim: true, maxlength: 300 },
     role: { type: String, trim: true, maxlength: 160 },
     company: { type: String, trim: true, maxlength: 160 },
     quote: { type: String, required: true, trim: true, maxlength: 2000 },
     profileImageUrl: { type: String, trim: true, maxlength: 2048 },
     profileImagePublicId: { type: String, trim: true, maxlength: 300 },
     sourceUrl: { type: String, trim: true, maxlength: 2048 },
-    rating: { type: Number, min: 1, max: 5 },
+    rating: { type: Number, required: true, min: 1, max: 5 },
     status: {
       type: String,
       enum: ['draft', 'approved', 'archived'],

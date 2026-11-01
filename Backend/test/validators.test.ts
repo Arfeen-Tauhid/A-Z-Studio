@@ -10,6 +10,7 @@ import {
   projectSchema,
   publicRatingSchema,
   siteSettingsSchema,
+  testimonialSchema,
 } from '../src/validators/index.js'
 import { getMediaPolicyError } from '../src/services/mediaPolicy.js'
 import {
@@ -150,6 +151,42 @@ describe('project validation', () => {
     )
     assert.equal(youtubeVideoId('https://example.com/watch?v=aqz-KE-bpKQ'), null)
     assert.equal(youtubeVideoId('https://www.youtube.com/watch?v=invalid'), null)
+  })
+})
+
+describe('testimonial validation', () => {
+  it('requires client details, an approved quote, a feedback screenshot, and a rating', () => {
+    const testimonial = testimonialSchema.parse({
+      clientName: 'Alex Morgan',
+      clientCountry: 'United States',
+      clientChannelName: 'Northstar Coffee',
+      quote: 'The final video captured exactly what makes our brand special.',
+      commentScreenshotUrl: 'https://media.example.com/feedback.png',
+      rating: 5,
+    })
+
+    assert.equal(testimonial.clientCountry, 'United States')
+    assert.equal(testimonial.clientChannelName, 'Northstar Coffee')
+    assert.equal(
+      testimonialSchema.safeParse({
+        clientName: 'Alex Morgan',
+        clientCountry: 'United States',
+        clientChannelName: 'Northstar Coffee',
+        quote: 'The final video captured exactly what makes our brand special.',
+        rating: 5,
+      }).success,
+      false,
+    )
+    assert.equal(
+      testimonialSchema.safeParse({
+        clientName: 'Alex Morgan',
+        clientCountry: 'United States',
+        clientChannelName: 'Northstar Coffee',
+        quote: 'The final video captured exactly what makes our brand special.',
+        commentScreenshotUrl: 'https://media.example.com/feedback.png',
+      }).success,
+      false,
+    )
   })
 })
 

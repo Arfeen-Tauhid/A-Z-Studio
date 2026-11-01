@@ -2639,7 +2639,8 @@ html.motion-ready #main .motion-reveal.is-visible {
 
 .client-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-color: var(--line);
+  gap: clamp(16px, 2vw, 24px);
+  border: 0;
 }
 .client-card {
   min-height: 0;
@@ -2647,7 +2648,13 @@ html.motion-ready #main .motion-reveal.is-visible {
   justify-content: flex-start;
   gap: 13px;
   text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 18px;
   background: #121a2c;
+  transition:
+    transform 0.28s ease,
+    border-color 0.28s ease,
+    box-shadow 0.28s ease;
 }
 .client-card h2 {
   margin: 0;
@@ -2668,19 +2675,79 @@ html.motion-ready #main .motion-reveal.is-visible {
   background: #0d0c0b;
 }
 .client-video {
+  overflow: hidden;
+  border-radius: 12px;
   border: 1px solid var(--line);
 }
 .client-video .video-player-frame {
   object-fit: cover;
+  transition: transform 0.35s ease;
 }
 .client-comment {
   display: grid;
   gap: 8px;
+  overflow: hidden;
+  border-radius: 12px;
   color: var(--lime);
   font: 10px var(--font-mono);
 }
 .client-comment img {
   border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.testimonial-card {
+  overflow: hidden;
+  border-radius: 18px;
+  transition:
+    transform 0.28s ease,
+    border-color 0.28s ease,
+    box-shadow 0.28s ease;
+}
+.testimonial-feedback {
+  border-radius: 12px;
+}
+.testimonial-feedback img {
+  transition: transform 0.35s ease;
+}
+html.motion-ready #main .client-grid > .client-card.motion-reveal,
+html.motion-ready #main .testimonial-grid > .testimonial-card.motion-reveal {
+  transform: translateY(14px);
+  transition:
+    opacity 0.55s ease,
+    filter 0.55s ease,
+    transform 0.55s cubic-bezier(0.2, 0.7, 0.2, 1),
+    box-shadow 0.28s ease,
+    border-color 0.28s ease;
+}
+html.motion-ready #main .client-grid > .client-card.motion-reveal.is-visible,
+html.motion-ready #main .testimonial-grid > .testimonial-card.motion-reveal.is-visible {
+  transform: translateY(0);
+}
+html.motion-ready #main .client-grid > .client-card.motion-reveal:nth-child(2),
+html.motion-ready #main .testimonial-grid > .testimonial-card.motion-reveal:nth-child(2) {
+  transition-delay: 80ms, 80ms, 80ms, 0ms, 0ms;
+}
+html.motion-ready #main .client-grid > .client-card.motion-reveal:nth-child(3),
+html.motion-ready #main .testimonial-grid > .testimonial-card.motion-reveal:nth-child(3) {
+  transition-delay: 160ms, 160ms, 160ms, 0ms, 0ms;
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .client-card:hover,
+  .testimonial-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(88, 226, 208, 0.42);
+    box-shadow: 0 16px 38px rgba(0, 0, 0, 0.2);
+  }
+  html.motion-ready #main .client-grid > .client-card.motion-reveal.is-visible:hover,
+  html.motion-ready #main .testimonial-grid > .testimonial-card.motion-reveal.is-visible:hover {
+    transform: translateY(-4px);
+    transition-delay: 0ms;
+  }
+  .client-card:hover .client-video .video-player-frame,
+  .client-card:hover .client-comment img,
+  .testimonial-card:hover .testimonial-feedback img {
+    transform: scale(1.025);
+  }
 }
 .review-section {
   display: grid;

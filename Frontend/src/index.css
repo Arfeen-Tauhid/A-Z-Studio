@@ -3207,6 +3207,14 @@ html.motion-ready #main .approach .process-grid > .motion-reveal:nth-child(4) {
 .admin-row-actions .danger-action {
   color: #ee9a89;
 }
+.blog-status-control {
+  margin: 8px 0 0;
+}
+.blog-status-control > span {
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 10px;
+}
 .status-pill {
   display: inline-block;
   padding: 5px 8px;

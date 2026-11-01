@@ -729,19 +729,66 @@ app.patch(
     const { status } = blogReviewSchema.parse(request.body)
     const post = await BlogPostModel.findById(request.params.id)
     if (!post) throw new HttpError(404, 'Blog post not found.')
+    const previousStatus = post.status
     post.status = status
     post.reviewedBy = `${request.adminNumber} ${request.adminEmail}`
     post.reviewedAt = new Date()
-    post.publishedAt = status === 'published' ? new Date() : undefined
+    post.publishedAt = status === 'published' ? (post.publishedAt ?? new Date()) : undefined
     await post.save()
     await recordAdminActivity(request, {
       action: 'update',
       resource: 'Blog post',
       recordId: post.id,
       recordLabel: post.title,
-      changedFields: ['status'],
+      changedFields: previousStatus === status ? [] : ['status'],
     })
     sendData(response, post)
+  },
+)
+
+app.patch(
+  '/api/admin/blog-posts/:id',
+  requireAdminPermission('blog-post-review'),
+  async (request, response) => {
+    if (!mongoose.isValidObjectId(request.params.id))
+      throw new HttpError(400, 'Invalid blog post ID.')
+    const input = blogPostSchema.parse(request.body)
+    const post = await BlogPostModel.findById(request.params.id)
+    if (!post) throw new HttpError(404, 'Blog post not found.')
+    const changedFields = (['title', 'category', 'excerpt', 'content'] as const).filter(
+      (field) => post[field] !== input[field],
+    )
+    post.title = input.title
+    post.category = input.category
+    post.excerpt = input.excerpt
+    post.content = input.content
+    await post.save()
+    await recordAdminActivity(request, {
+      action: 'update',
+      resource: 'Blog post',
+      recordId: post.id,
+      recordLabel: post.title,
+      changedFields,
+    })
+    sendData(response, post)
+  },
+)
+
+app.delete(
+  '/api/admin/blog-posts/:id',
+  requireAdminPermission('blog-post-review'),
+  async (request, response) => {
+    if (!mongoose.isValidObjectId(request.params.id))
+      throw new HttpError(400, 'Invalid blog post ID.')
+    const post = await BlogPostModel.findByIdAndDelete(request.params.id)
+    if (!post) throw new HttpError(404, 'Blog post not found.')
+    await recordAdminActivity(request, {
+      action: 'delete',
+      resource: 'Blog post',
+      recordId: post.id,
+      recordLabel: post.title,
+    })
+    response.status(204).end()
   },
 )
 

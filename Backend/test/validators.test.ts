@@ -6,6 +6,7 @@ import {
   adminPermissionsSchema,
   blogAuthorLoginSchema,
   blogPostSchema,
+  blogReviewSchema,
   blogWritingRequestSchema,
   blogWritingRequestReviewSchema,
   adminInquirySchema,
@@ -124,7 +125,15 @@ describe('limited admin access', () => {
     )
     assert.equal(canAccessAdminPath('custom', ['blog-writers'], 'GET', '/blog-posts'), false)
     assert.equal(
+      canAccessAdminPath('custom', ['blog-post-review'], 'PATCH', '/blog-posts/123'),
+      true,
+    )
+    assert.equal(
       canAccessAdminPath('custom', ['blog-post-review'], 'PATCH', '/blog-posts/123/review'),
+      true,
+    )
+    assert.equal(
+      canAccessAdminPath('custom', ['blog-post-review'], 'DELETE', '/blog-posts/123'),
       true,
     )
     assert.equal(canAccessAdminPath('custom', ['blog-post-review'], 'GET', '/blog-authors'), false)
@@ -212,6 +221,9 @@ describe('admin account validation', () => {
       }
       assert.equal(blogPostSchema.safeParse(post).success, true)
       assert.equal(blogPostSchema.safeParse({ ...post, content: 'Too short.' }).success, false)
+      assert.equal(blogReviewSchema.safeParse({ status: 'pending' }).success, true)
+      assert.equal(blogReviewSchema.safeParse({ status: 'published' }).success, true)
+      assert.equal(blogReviewSchema.safeParse({ status: 'invalid' }).success, false)
       assert.equal(blogWritingRequestReviewSchema.safeParse({ status: 'approved' }).success, true)
       assert.equal(blogWritingRequestReviewSchema.safeParse({ status: 'pending' }).success, false)
     })

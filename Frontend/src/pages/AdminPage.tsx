@@ -562,6 +562,14 @@ function AdminDashboard({
   const [contentPages, setContentPages] = useState(1)
   const [statusFilter, setStatusFilter] = useState('')
   const [editing, setEditing] = useState<CmsRecord | null>(null)
+  const [editingBlogPost, setEditingBlogPost] = useState<CmsRecord | null>(null)
+  const [blogPostDraft, setBlogPostDraft] = useState({
+    title: '',
+    category: '',
+    excerpt: '',
+    content: '',
+  })
+  const [blogPostStatusDraft, setBlogPostStatusDraft] = useState<Record<string, string>>({})
   const [editingAdminPermissions, setEditingAdminPermissions] = useState<AdminRecord | null>(null)
   const [adminPermissionDraft, setAdminPermissionDraft] = useState<AdminPermission[]>([])
   const [uploadingField, setUploadingField] = useState<string | null>(null)
@@ -1184,7 +1192,7 @@ function AdminDashboard({
     }
   }
 
-  async function reviewBlogPost(record: CmsRecord, status: 'published' | 'declined') {
+  async function reviewBlogPost(record: CmsRecord, status: 'pending' | 'published' | 'declined') {
     setError('')
     setNotice('')
     try {
@@ -1193,11 +1201,66 @@ function AdminDashboard({
         body: JSON.stringify({ status }),
       })
       setLoading(true)
-      setNotice(status === 'published' ? 'Article published.' : 'Article declined.')
+      setNotice(
+        status === 'published'
+          ? 'Article published.'
+          : status === 'declined'
+            ? 'Article declined.'
+            : 'Article moved back to pending review.',
+      )
       await loadData()
     } catch (requestError) {
       setError(
         requestError instanceof Error ? requestError.message : 'Could not review the article.',
+      )
+    }
+  }
+
+  function editBlogPost(record: CmsRecord) {
+    setEditingBlogPost(record)
+    setBlogPostDraft({
+      title: String(record.title ?? ''),
+      category: String(record.category ?? ''),
+      excerpt: String(record.excerpt ?? ''),
+      content: String(record.content ?? ''),
+    })
+    setError('')
+    setNotice('')
+  }
+
+  async function saveBlogPost(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!editingBlogPost) return
+    setError('')
+    setNotice('')
+    try {
+      await apiRequest(`/api/admin/blog-posts/${editingBlogPost._id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(blogPostDraft),
+      })
+      setEditingBlogPost(null)
+      setNotice('Blog article updated.')
+      await loadData()
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error ? requestError.message : 'Could not update the article.',
+      )
+    }
+  }
+
+  async function deleteBlogPost(record: CmsRecord) {
+    const title = String(record.title ?? 'this article')
+    if (!window.confirm(`Permanently delete "${title}"? This cannot be undone.`)) return
+    setError('')
+    setNotice('')
+    try {
+      await apiRequest(`/api/admin/blog-posts/${record._id}`, { method: 'DELETE' })
+      if (editingBlogPost?._id === record._id) setEditingBlogPost(null)
+      setNotice('Blog article deleted.')
+      await loadData()
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error ? requestError.message : 'Could not delete the article.',
       )
     }
   }
@@ -2153,61 +2216,180 @@ function AdminDashboard({
                 </tbody>
               </table>
             ) : activeTab === 'blog-posts' ? (
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Article</th>
-                    <th>Author</th>
-                    <th>Status</th>
-                    <th>Review</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activeRecords.map((record) => (
-                    <tr key={record._id}>
-                      <td className="blog-admin-article">
-                        <strong>{String(record.title)}</strong>
-                        <small>{String(record.category)}</small>
-                        <p>{String(record.excerpt)}</p>
-                        <details>
-                          <summary>Read full submission</summary>
-                          <p>{String(record.content)}</p>
-                        </details>
-                      </td>
-                      <td>
-                        <strong>{String(record.authorName)}</strong>
-                        <small>{String(record.slug)}</small>
-                      </td>
-                      <td>
-                        <span className="status-pill">{String(record.status)}</span>
-                      </td>
-                      <td>
-                        {record.status === 'pending' ? (
-                          <div className="admin-row-actions">
+              <>
+                {editingBlogPost && (
+                  <form className="admin-editor" onSubmit={saveBlogPost}>
+                    <div className="admin-editor-heading">
+                      <div>
+                        <span className="eyebrow">EDIT BLOG ARTICLE</span>
+                        <h2>{String(editingBlogPost.title)}</h2>
+                      </div>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        aria-label="Close article editor"
+                        onClick={() => setEditingBlogPost(null)}
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                    <div className="admin-form-grid">
+                      <label className="field">
+                        <span>Article title</span>
+                        <input
+                          required
+                          minLength={5}
+                          maxLength={180}
+                          value={blogPostDraft.title}
+                          onChange={(event) =>
+                            setBlogPostDraft({ ...blogPostDraft, title: event.target.value })
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Topic / category</span>
+                        <input
+                          required
+                          minLength={2}
+                          maxLength={80}
+                          value={blogPostDraft.category}
+                          onChange={(event) =>
+                            setBlogPostDraft({ ...blogPostDraft, category: event.target.value })
+                          }
+                        />
+                      </label>
+                      <label className="field field-full">
+                        <span>Short introduction</span>
+                        <textarea
+                          required
+                          minLength={20}
+                          maxLength={400}
+                          rows={3}
+                          value={blogPostDraft.excerpt}
+                          onChange={(event) =>
+                            setBlogPostDraft({ ...blogPostDraft, excerpt: event.target.value })
+                          }
+                        />
+                      </label>
+                      <label className="field field-full">
+                        <span>Article</span>
+                        <textarea
+                          required
+                          minLength={100}
+                          maxLength={30000}
+                          rows={12}
+                          value={blogPostDraft.content}
+                          onChange={(event) =>
+                            setBlogPostDraft({ ...blogPostDraft, content: event.target.value })
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="admin-editor-actions">
+                      <button className="button button-accent" type="submit">
+                        <Save size={15} /> Save article
+                      </button>
+                    </div>
+                  </form>
+                )}
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Article</th>
+                      <th>Author</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeRecords.map((record) => (
+                      <tr key={record._id}>
+                        <td className="blog-admin-article">
+                          <strong>{String(record.title)}</strong>
+                          <small>{String(record.category)}</small>
+                          <p>{String(record.excerpt)}</p>
+                          <details>
+                            <summary>Read full submission</summary>
+                            <p>{String(record.content)}</p>
+                          </details>
+                        </td>
+                        <td>
+                          <strong>{String(record.authorName)}</strong>
+                          <small>{String(record.slug)}</small>
+                        </td>
+                        <td>
+                          <span className="status-pill">{String(record.status)}</span>
+                          <label className="field blog-status-control">
+                            <span>Change status</span>
+                            <select
+                              value={blogPostStatusDraft[record._id] ?? String(record.status)}
+                              onChange={(event) =>
+                                setBlogPostStatusDraft({
+                                  ...blogPostStatusDraft,
+                                  [record._id]: event.target.value,
+                                })
+                              }
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="published">Published</option>
+                              <option value="declined">Declined</option>
+                            </select>
+                          </label>
+                          {(blogPostStatusDraft[record._id] ?? String(record.status)) !==
+                            String(record.status) && (
                             <button
                               type="button"
-                              onClick={() => void reviewBlogPost(record, 'published')}
+                              onClick={() => {
+                                const nextStatus = blogPostStatusDraft[record._id]
+                                if (
+                                  nextStatus === 'pending' ||
+                                  nextStatus === 'published' ||
+                                  nextStatus === 'declined'
+                                ) {
+                                  void reviewBlogPost(record, nextStatus)
+                                }
+                              }}
                             >
-                              Approve & publish
+                              Save status
+                            </button>
+                          )}
+                        </td>
+                        <td>
+                          <div className="admin-row-actions">
+                            <button type="button" onClick={() => editBlogPost(record)}>
+                              Edit
                             </button>
                             <button
                               type="button"
                               className="danger-action"
-                              onClick={() => void reviewBlogPost(record, 'declined')}
+                              onClick={() => void deleteBlogPost(record)}
                             >
-                              Decline
+                              Delete
                             </button>
                           </div>
-                        ) : (
-                          <span>
-                            {record.reviewedBy ? `Reviewed by ${String(record.reviewedBy)}` : '—'}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                          {record.status === 'pending' && (
+                            <div className="admin-row-actions">
+                              <button
+                                type="button"
+                                onClick={() => void reviewBlogPost(record, 'published')}
+                              >
+                                Approve & publish
+                              </button>
+                              <button
+                                type="button"
+                                className="danger-action"
+                                onClick={() => void reviewBlogPost(record, 'declined')}
+                              >
+                                Decline
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
             ) : activeTab === 'inquiries' ? (
               <table className="admin-table">
                 <thead>

@@ -136,7 +136,7 @@ export const blogPostSchema = z.object({
 })
 
 export const blogReviewSchema = z.object({
-  status: z.enum(['published', 'declined']),
+  status: z.enum(['pending', 'published', 'declined']),
 })
 
 export const blogWritingRequestReviewSchema = z.object({

@@ -30,6 +30,7 @@ import {
   requireAdminPermission,
   requireAdminResourceAccess,
   requireOwner,
+  requireWebsiteCreator,
 } from './middleware/auth.js'
 import { requireBlogAuthor } from './middleware/blogAuth.js'
 import { getMediaPolicyError, mediaLimits } from './services/mediaPolicy.js'
@@ -962,6 +963,19 @@ app.get('/api/admin/activity', requireAdminPermission('activity'), async (_reque
     .limit(100)
     .lean()
   sendData(response, items)
+})
+
+app.delete('/api/admin/activity', requireWebsiteCreator, async (_request, response) => {
+  const result = await AdminActivityModel.deleteMany({})
+  sendData(response, { deletedCount: result.deletedCount })
+})
+
+app.delete('/api/admin/activity/:id', requireWebsiteCreator, async (request, response) => {
+  if (!mongoose.isValidObjectId(request.params.id))
+    throw new HttpError(400, 'Invalid activity log ID.')
+  const item = await AdminActivityModel.findByIdAndDelete(request.params.id).select('_id').lean()
+  if (!item) throw new HttpError(404, 'Activity log entry not found.')
+  response.status(204).end()
 })
 
 app.get('/api/admin/dashboard', async (request, response) => {

@@ -3196,6 +3196,26 @@ html.motion-ready #main .approach .process-grid > .motion-reveal:nth-child(4) {
   display: flex;
   gap: 13px;
 }
+.activity-log-actions {
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+.activity-delete-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.activity-delete-button,
+.activity-log-actions .danger-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #ee9a89;
+}
+.activity-log-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .admin-row-actions button {
   padding: 0;
   border: 0;

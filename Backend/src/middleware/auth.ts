@@ -4,7 +4,7 @@ import { env } from '../config/env.js'
 import { AdminModel } from '../models/index.js'
 import { ensureAdminNumber } from '../services/adminAudit.js'
 import { HttpError } from './errors.js'
-import { canAccessAdminPath, type AdminRole } from './adminAccess.js'
+import { canAccessAdminPath, isWebsiteCreator, type AdminRole } from './adminAccess.js'
 
 declare global {
   namespace Express {
@@ -78,6 +78,14 @@ export const requireAdminPermission = (permission: string): RequestHandler => {
 export const requireOwner: RequestHandler = (request, _response, next) => {
   if (request.adminRole !== 'owner') {
     next(new HttpError(403, 'Owner access is required for this action.'))
+    return
+  }
+  next()
+}
+
+export const requireWebsiteCreator: RequestHandler = (request, _response, next) => {
+  if (request.adminRole !== 'owner' || !isWebsiteCreator(request.adminEmail, request.adminNumber)) {
+    next(new HttpError(403, 'Only the original website owner can manage activity log entries.'))
     return
   }
   next()

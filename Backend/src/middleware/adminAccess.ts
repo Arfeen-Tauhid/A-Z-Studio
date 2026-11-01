@@ -1,5 +1,9 @@
 export type AdminRole = 'owner' | 'full' | 'limited' | 'custom'
 
+export function isWebsiteCreator(email?: string, adminNumber?: string) {
+  return email?.toLowerCase() === 'arfeentauhid01@gmail.com' && adminNumber === 'AZ1245'
+}
+
 export type AdminPermission =
   | 'projects'
   | 'clients'

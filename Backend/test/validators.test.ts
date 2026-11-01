@@ -26,7 +26,7 @@ import {
   youtubeThumbnailUrl,
   youtubeVideoId,
 } from '../src/services/youtube.js'
-import { canAccessAdminPath } from '../src/middleware/adminAccess.js'
+import { canAccessAdminPath, isWebsiteCreator } from '../src/middleware/adminAccess.js'
 
 describe('limited admin access', () => {
   it('allows editing projects and services and viewing approved content sections', () => {
@@ -80,6 +80,14 @@ describe('limited admin access', () => {
     assert.equal(canAccessAdminPath('full', [], 'POST', '/admins'), false)
     assert.equal(canAccessAdminPath('full', [], 'GET', '/activity'), false)
     assert.equal(canAccessAdminPath('full', ['create-admins'], 'POST', '/admins'), true)
+  })
+
+  it('identifies only the original website creator for activity log management', () => {
+    assert.equal(isWebsiteCreator('arfeentauhid01@gmail.com', 'AZ1245'), true)
+    assert.equal(isWebsiteCreator('ARFEENTAUHID01@GMAIL.COM', 'AZ1245'), true)
+    assert.equal(isWebsiteCreator('other@example.com', 'AZ1245'), false)
+    assert.equal(isWebsiteCreator('arfeentauhid01@gmail.com', 'AZ0001'), false)
+    assert.equal(isWebsiteCreator(undefined, 'AZ1245'), false)
   })
 
   it('lets custom content admins create assigned content and upload its media', () => {

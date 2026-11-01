@@ -7,6 +7,7 @@ import {
   Plus,
   Save,
   Star,
+  Trash2,
   Users,
   X,
 } from 'lucide-react'
@@ -1288,8 +1289,52 @@ function AdminDashboard({
     }
   }
 
+  async function deleteActivity(item: CmsRecord) {
+    if (!window.confirm('Delete this activity log entry? This cannot be undone.')) return
+    setError('')
+    setNotice('')
+    try {
+      await apiRequest(`/api/admin/activity/${item._id}`, { method: 'DELETE' })
+      setRecords((current) => current.filter((entry) => entry._id !== item._id))
+      sectionCache.current.delete('activity:1:')
+      setNotice('Activity log entry deleted.')
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Could not delete the activity log entry.',
+      )
+    }
+  }
+
+  async function deleteAllActivity() {
+    if (
+      !window.confirm(
+        'Delete all activity log entries? This permanently removes the complete activity history and cannot be undone.',
+      )
+    ) {
+      return
+    }
+    setError('')
+    setNotice('')
+    try {
+      await apiRequest<{ deletedCount: number }>('/api/admin/activity', { method: 'DELETE' })
+      setRecords([])
+      sectionCache.current.delete('activity:1:')
+      setNotice('All activity log entries have been deleted.')
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error ? requestError.message : 'Could not clear the activity log.',
+      )
+    }
+  }
+
   const canCreateAdmins = role === 'owner' || permissions.includes('create-admins')
   const canViewActivity = role === 'owner' || permissions.includes('activity')
+  const canManageActivity =
+    role === 'owner' &&
+    email.toLowerCase() === 'arfeentauhid01@gmail.com' &&
+    adminNumber === 'AZ1245'
   const canReviewBlogRequests = role === 'owner' || permissions.includes('blog-writing-requests')
   const canManageBlogWriters = role === 'owner' || permissions.includes('blog-writers')
   const canReviewBlogPosts = role === 'owner' || permissions.includes('blog-post-review')
@@ -1980,59 +2025,88 @@ function AdminDashboard({
           <div className="admin-table-wrap" hidden={activeTab === 'create-admin'}>
             {loading ? (
               <p className="admin-empty">Loading content…</p>
-            ) : activeRecords.length === 0 ? (
+            ) : activeRecords.length === 0 && activeTab !== 'activity' ? (
               <p className="admin-empty">
-                {activeTab === 'activity'
-                  ? 'No admin activity has been recorded yet.'
-                  : activeTab === 'inquiries'
-                    ? 'No inquiries yet.'
-                    : activeTab === 'blog-requests'
-                      ? 'No blog writing requests have been received.'
-                      : activeTab === 'blog-authors'
-                        ? 'No blog writer accounts have been created.'
-                        : activeTab === 'blog-posts'
-                          ? 'No articles have been submitted for review.'
-                          : 'No content found. Use the button above to add the first item.'}
+                {activeTab === 'inquiries'
+                  ? 'No inquiries yet.'
+                  : activeTab === 'blog-requests'
+                    ? 'No blog writing requests have been received.'
+                    : activeTab === 'blog-authors'
+                      ? 'No blog writer accounts have been created.'
+                      : activeTab === 'blog-posts'
+                        ? 'No articles have been submitted for review.'
+                        : 'No content found. Use the button above to add the first item.'}
               </p>
             ) : activeTab === 'activity' ? (
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Employee ID</th>
-                    <th>Action</th>
-                    <th>Content</th>
-                    <th>Changed fields</th>
-                    <th>Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activeRecords.map((item) => (
-                    <tr key={item._id}>
-                      <td>
-                        <strong>{String(item.actorAdminNumber)}</strong>
-                        <small>{String(item.actorEmail)}</small>
-                      </td>
-                      <td>
-                        <span className="status-pill">{String(item.action)}</span>
-                      </td>
-                      <td>
-                        <strong>{String(item.resource)}</strong>
-                        <small>{String(item.recordLabel ?? '')}</small>
-                      </td>
-                      <td>
-                        {Array.isArray(item.changedFields)
-                          ? (item.changedFields as string[]).join(', ') || '—'
-                          : '—'}
-                      </td>
-                      <td>
-                        {typeof item.createdAt === 'string'
-                          ? new Date(item.createdAt).toLocaleString()
-                          : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <>
+                {canManageActivity && (
+                  <div className="admin-row-actions activity-log-actions">
+                    <button
+                      type="button"
+                      className="danger-action"
+                      disabled={activeRecords.length === 0}
+                      onClick={() => void deleteAllActivity()}
+                    >
+                      <Trash2 size={14} /> Delete all activity
+                    </button>
+                  </div>
+                )}
+                {activeRecords.length === 0 ? (
+                  <p className="admin-empty">No admin activity has been recorded yet.</p>
+                ) : (
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Employee ID</th>
+                        <th>Action</th>
+                        <th>Content</th>
+                        <th>Changed fields</th>
+                        <th>Time</th>
+                        {canManageActivity && <th>Actions</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeRecords.map((item) => (
+                        <tr key={item._id}>
+                          <td>
+                            <strong>{String(item.actorAdminNumber)}</strong>
+                            <small>{String(item.actorEmail)}</small>
+                          </td>
+                          <td>
+                            <span className="status-pill">{String(item.action)}</span>
+                          </td>
+                          <td>
+                            <strong>{String(item.resource)}</strong>
+                            <small>{String(item.recordLabel ?? '')}</small>
+                          </td>
+                          <td>
+                            {Array.isArray(item.changedFields)
+                              ? (item.changedFields as string[]).join(', ') || '—'
+                              : '—'}
+                          </td>
+                          <td>
+                            {typeof item.createdAt === 'string'
+                              ? new Date(item.createdAt).toLocaleString()
+                              : '—'}
+                          </td>
+                          {canManageActivity && (
+                            <td>
+                              <button
+                                type="button"
+                                className="danger-action activity-delete-button"
+                                aria-label={`Delete activity: ${String(item.action)} ${String(item.resource)}`}
+                                onClick={() => void deleteActivity(item)}
+                              >
+                                <Trash2 size={14} /> Delete
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </>
             ) : activeTab === 'admins' ? (
               <table className="admin-table">
                 <thead>

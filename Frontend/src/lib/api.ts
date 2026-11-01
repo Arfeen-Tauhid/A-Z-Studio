@@ -66,6 +66,7 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   }
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
+    cache: path.startsWith('/api/public/blogs') ? 'no-store' : options.cache,
     credentials: 'include',
     headers,
   })

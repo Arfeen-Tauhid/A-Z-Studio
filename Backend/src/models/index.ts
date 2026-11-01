@@ -34,6 +34,8 @@ const projectSchema = new Schema(
   { timestamps: true },
 )
 projectSchema.index({ status: 1, publishedAt: -1 })
+projectSchema.index({ updatedAt: -1, _id: -1 })
+projectSchema.index({ status: 1, updatedAt: -1, _id: -1 })
 
 const serviceSchema = new Schema(
   {
@@ -45,6 +47,7 @@ const serviceSchema = new Schema(
   },
   { timestamps: true },
 )
+serviceSchema.index({ sortOrder: 1, title: 1, _id: 1 })
 
 const clientSchema = new Schema(
   {
@@ -61,6 +64,7 @@ const clientSchema = new Schema(
   },
   { timestamps: true },
 )
+clientSchema.index({ name: 1, _id: 1 })
 
 const testimonialSchema = new Schema(
   {
@@ -85,6 +89,8 @@ const testimonialSchema = new Schema(
   },
   { timestamps: true },
 )
+testimonialSchema.index({ updatedAt: -1, _id: -1 })
+testimonialSchema.index({ status: 1, updatedAt: -1, _id: -1 })
 
 const ratingSchema = new Schema(
   {
@@ -96,6 +102,7 @@ const ratingSchema = new Schema(
   },
   { timestamps: true },
 )
+ratingSchema.index({ createdAt: -1, _id: -1 })
 
 const inquirySchema = new Schema(
   {
@@ -240,6 +247,7 @@ const blogAuthorSchema = new Schema(
   },
   { timestamps: true },
 )
+blogAuthorSchema.index({ createdAt: -1 })
 
 const blogPostSchema = new Schema(
   {
@@ -265,7 +273,10 @@ const blogPostSchema = new Schema(
   },
   { timestamps: true },
 )
-blogPostSchema.index({ status: 1, publishedAt: -1 })
+blogPostSchema.index({ status: 1, publishedAt: -1, _id: -1 })
+blogPostSchema.index({ status: 1, viewCount: -1, publishedAt: -1, _id: -1 })
+blogPostSchema.index({ status: 1, likeCount: -1, publishedAt: -1, _id: -1 })
+blogPostSchema.index({ createdAt: -1 })
 blogPostSchema.index({ authorId: 1, createdAt: -1 })
 
 const siteSettingsSchema = new Schema(
@@ -284,6 +295,7 @@ const siteSettingsSchema = new Schema(
   },
   { timestamps: true },
 )
+siteSettingsSchema.index({ updatedAt: -1, _id: -1 })
 
 export type Project = InferSchemaType<typeof projectSchema>
 export type Inquiry = InferSchemaType<typeof inquirySchema>

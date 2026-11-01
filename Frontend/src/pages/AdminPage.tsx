@@ -1196,11 +1196,24 @@ function AdminDashboard({
     setError('')
     setNotice('')
     try {
-      await apiRequest(`/api/admin/blog-posts/${record._id}/review`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status }),
+      const updatedPost = await apiRequest<CmsRecord>(
+        `/api/admin/blog-posts/${record._id}/review`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ status }),
+        },
+      )
+      for (const key of sectionCache.current.keys()) {
+        if (key.startsWith('blog-posts:')) sectionCache.current.delete(key)
+      }
+      setRecords((current) => {
+        const includesPost = current.some((item) => item._id === record._id)
+        const matchesFilter = !statusFilter || updatedPost.status === statusFilter
+        if (!matchesFilter) return current.filter((item) => item._id !== record._id)
+        return includesPost
+          ? current.map((item) => (item._id === record._id ? updatedPost : item))
+          : [updatedPost, ...current]
       })
-      setLoading(true)
       setNotice(
         status === 'published'
           ? 'Article published.'
@@ -1208,7 +1221,6 @@ function AdminDashboard({
             ? 'Article declined.'
             : 'Article moved back to pending review.',
       )
-      await loadData()
     } catch (requestError) {
       setError(
         requestError instanceof Error ? requestError.message : 'Could not review the article.',
@@ -1234,13 +1246,21 @@ function AdminDashboard({
     setError('')
     setNotice('')
     try {
-      await apiRequest(`/api/admin/blog-posts/${editingBlogPost._id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(blogPostDraft),
-      })
+      const updatedPost = await apiRequest<CmsRecord>(
+        `/api/admin/blog-posts/${editingBlogPost._id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(blogPostDraft),
+        },
+      )
+      setRecords((current) =>
+        current.map((item) => (item._id === updatedPost._id ? updatedPost : item)),
+      )
+      for (const key of sectionCache.current.keys()) {
+        if (key.startsWith('blog-posts:')) sectionCache.current.delete(key)
+      }
       setEditingBlogPost(null)
       setNotice('Blog article updated.')
-      await loadData()
     } catch (requestError) {
       setError(
         requestError instanceof Error ? requestError.message : 'Could not update the article.',
@@ -1256,8 +1276,11 @@ function AdminDashboard({
     try {
       await apiRequest(`/api/admin/blog-posts/${record._id}`, { method: 'DELETE' })
       if (editingBlogPost?._id === record._id) setEditingBlogPost(null)
+      setRecords((current) => current.filter((item) => item._id !== record._id))
+      for (const key of sectionCache.current.keys()) {
+        if (key.startsWith('blog-posts:')) sectionCache.current.delete(key)
+      }
       setNotice('Blog article deleted.')
-      await loadData()
     } catch (requestError) {
       setError(
         requestError instanceof Error ? requestError.message : 'Could not delete the article.',

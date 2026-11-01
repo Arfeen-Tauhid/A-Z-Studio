@@ -116,32 +116,44 @@ export function BlogsPage() {
   useEffect(() => {
     if (slug) return
     let active = true
-    const authorQuery = authorIdFilter ? `&author=${encodeURIComponent(authorIdFilter)}` : ''
-    Promise.all(
-      (['recent', 'views', 'likes'] as const).map((sort) =>
-        apiRequest<PageResult<BlogPost>>(`/api/public/blogs?sort=${sort}&limit=6${authorQuery}`),
-      ),
-    )
-      .then(([recent, views, likes]) => {
-        if (!active) return
+    let requestId = 0
+    const refreshSections = async () => {
+      const currentRequestId = ++requestId
+      const authorQuery = authorIdFilter ? `&author=${encodeURIComponent(authorIdFilter)}` : ''
+      try {
+        const [recent, views, likes] = await Promise.all(
+          (['recent', 'views', 'likes'] as const).map((sort) =>
+            apiRequest<PageResult<BlogPost>>(
+              `/api/public/blogs?sort=${sort}&limit=6${authorQuery}`,
+            ),
+          ),
+        )
+        if (!active || currentRequestId !== requestId) return
         setSections({
           recent: recent.items,
           views: views.items,
           likes: likes.items,
         })
         setError('')
-      })
-      .catch((requestError: unknown) => {
-        if (active) {
+      } catch (requestError: unknown) {
+        if (active && currentRequestId === requestId) {
           setSections(emptySections)
           setError(requestError instanceof Error ? requestError.message : 'Could not load blogs.')
         }
-      })
-      .finally(() => {
-        if (active) setLoadedAuthorFilter(authorIdFilter)
-      })
+      } finally {
+        if (active && currentRequestId === requestId) setLoadedAuthorFilter(authorIdFilter)
+      }
+    }
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refreshSections()
+    }
+    void refreshSections()
+    window.addEventListener('focus', refreshWhenVisible)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
     return () => {
       active = false
+      window.removeEventListener('focus', refreshWhenVisible)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
     }
   }, [authorIdFilter, slug])
 

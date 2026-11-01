@@ -129,7 +129,6 @@ app.use(
     '/api/public/testimonials',
     '/api/public/ratings',
     '/api/public/site-settings',
-    '/api/public/blogs',
   ],
   (request, response, next) => {
     if (request.method === 'GET') {
@@ -138,6 +137,12 @@ app.use(
     next()
   },
 )
+app.use('/api/public/blogs', (_request, response, next) => {
+  response.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+  response.setHeader('Pragma', 'no-cache')
+  response.setHeader('Expires', '0')
+  next()
+})
 
 function sendData<T>(response: Response, data: T, status = 200) {
   response.status(status).json({ data })

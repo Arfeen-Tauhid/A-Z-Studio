@@ -10,6 +10,11 @@ const projectSchema = new Schema(
       enum: ['Short-form', 'YouTube', 'Podcast', 'Commercial', 'Motion graphics', 'Brand & promo'],
     },
     description: { type: String, required: true, trim: true, maxlength: 4000 },
+    videoAspectRatio: {
+      type: String,
+      enum: ['16:9', '9:16', '1:1', '4:5'],
+      default: '16:9',
+    },
     thumbnailUrl: { type: String, trim: true, maxlength: 2048 },
     thumbnailPublicId: { type: String, trim: true, maxlength: 300 },
     videoUrl: { type: String, trim: true, maxlength: 2048 },

@@ -50,6 +50,10 @@ export function ProjectPage() {
       </div>
     )
 
+  const isShortForm = project.category.trim().toLowerCase() === 'short-form'
+  const aspectRatio = project.videoAspectRatio ?? (isShortForm ? '9:16' : '16:9')
+  const aspectRatioClass = aspectRatio.replace(':', '-')
+
   return (
     <div className="shell project-detail">
       <Link className="back-link" to="/work">
@@ -62,7 +66,7 @@ export function ProjectPage() {
       <h1>{project.title}</h1>
       {project.videoUrl ? (
         <VideoPlayer
-          className={`detail-video${project.category.trim().toLowerCase() === 'short-form' ? ' detail-video-short-form' : ''}`}
+          className={`detail-video detail-video-ratio-${aspectRatioClass}`}
           source={project.videoUrl}
           title={`${project.title} project video`}
         />

@@ -145,7 +145,34 @@ describe('project validation', () => {
     })
 
     assert.equal(project.status, 'draft')
+    assert.equal(project.videoAspectRatio, '16:9')
     assert.equal(project.slug, undefined)
+  })
+
+  it('accepts supported video aspect ratios and rejects unsupported values', () => {
+    for (const videoAspectRatio of ['16:9', '9:16', '1:1', '4:5']) {
+      assert.equal(
+        projectSchema.safeParse({
+          title: 'Studio video',
+          category: 'Short-form',
+          clientName: 'Northstar Coffee',
+          description: 'A short approved project description.',
+          videoAspectRatio,
+        }).success,
+        true,
+      )
+    }
+
+    assert.equal(
+      projectSchema.safeParse({
+        title: 'Studio video',
+        category: 'Short-form',
+        clientName: 'Northstar Coffee',
+        description: 'A short approved project description.',
+        videoAspectRatio: '3:2',
+      }).success,
+      false,
+    )
   })
 
   it('rejects unsafe or malformed project slugs', () => {

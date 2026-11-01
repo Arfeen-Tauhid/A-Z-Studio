@@ -4,6 +4,7 @@ export type Project = {
   title: string
   category: string
   description: string
+  videoAspectRatio?: '16:9' | '9:16' | '1:1' | '4:5'
   thumbnailUrl?: string
   videoUrl?: string
   clientName?: string

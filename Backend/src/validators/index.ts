@@ -108,6 +108,8 @@ const sharedContent = {
   status: z.enum(['draft', 'published', 'archived']).default('draft'),
 }
 
+export const projectVideoAspectRatioSchema = z.enum(['16:9', '9:16', '1:1', '4:5'])
+
 export const projectSchema = z.object({
   slug: z
     .string()
@@ -125,6 +127,7 @@ export const projectSchema = z.object({
     'Brand & promo',
   ]),
   description: z.string().trim().min(1).max(4000),
+  videoAspectRatio: projectVideoAspectRatioSchema.default('16:9'),
   thumbnailUrl: url,
   thumbnailPublicId: optionalText(300),
   videoUrl: url,

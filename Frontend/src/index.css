@@ -749,13 +749,11 @@ button {
   grid-template-columns: repeat(3, 1fr);
   gap: 42px 20px;
 }
-.project-card:nth-child(3n + 2) {
-  transform: translateY(28px);
-}
 .project-image-link {
   height: clamp(190px, 23vw, 280px);
-  display: block;
+  display: grid;
   position: relative;
+  place-items: center;
   overflow: hidden;
   border-radius: 16px;
   background: #20221e;
@@ -774,33 +772,70 @@ button {
   opacity: 1;
 }
 .project-image {
-  width: 100%;
-  height: 100%;
   display: block;
-  object-fit: cover;
   transition: transform 0.55s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 .project-image-link:hover .project-image {
   transform: scale(1.04);
 }
-.project-card-short-form .project-image-link {
-  display: grid;
-  place-items: center;
-  background:
-    radial-gradient(ellipse at 50% 50%, rgba(88, 226, 208, 0.1), transparent 58%), #0b1020;
-}
-.project-card-short-form img.project-image {
+.project-card-ratio-16-9 .project-image {
   position: absolute;
-  top: 0;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  transform: translate(-50%, -50%);
+}
+.project-card-ratio-9-16 .project-image {
+  position: absolute;
+  top: 50%;
   left: 50%;
   width: auto;
   max-width: 100%;
   height: 100%;
-  object-fit: contain;
-  transform: translateX(-50%);
+  max-height: 100%;
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+  transform: translate(-50%, -50%);
 }
-.project-card-short-form .project-image-link:hover img.project-image {
-  transform: translateX(-50%) scale(1.025);
+.project-card-ratio-1-1 .project-image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: auto;
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  transform: translate(-50%, -50%);
+}
+.project-card-ratio-4-5 .project-image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: auto;
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  transform: translate(-50%, -50%);
+}
+.project-card-ratio-9-16 .project-image-link,
+.project-card-ratio-1-1 .project-image-link,
+.project-card-ratio-4-5 .project-image-link {
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(88, 226, 208, 0.1), transparent 58%), #0b1020;
+}
+.project-card-ratio-16-9 .project-image-link:hover .project-image,
+.project-card-ratio-9-16 .project-image-link:hover .project-image,
+.project-card-ratio-1-1 .project-image-link:hover .project-image,
+.project-card-ratio-4-5 .project-image-link:hover .project-image {
+  transform: translate(-50%, -50%) scale(1.025);
 }
 .project-watch {
   position: absolute;
@@ -1265,31 +1300,30 @@ html.motion-ready #main .motion-reveal.is-visible {
 .detail-video .video-player-frame {
   object-fit: contain;
 }
-.detail-video-short-form {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: min(72svh, 720px);
-  max-height: none;
-  padding: 20px;
-  aspect-ratio: auto;
+.detail-video-ratio-9-16 {
+  width: min(100%, calc(min(78svh, 700px) * 9 / 16));
+  max-height: min(78svh, 700px);
+  aspect-ratio: 9 / 16;
+  margin-inline: auto;
   border: 1px solid var(--line);
+}
+.detail-video-ratio-1-1 {
+  width: min(100%, min(78svh, 700px));
+  max-height: min(78svh, 700px);
+  aspect-ratio: 1 / 1;
+  margin-inline: auto;
+}
+.detail-video-ratio-4-5 {
+  width: min(100%, calc(min(78svh, 700px) * 4 / 5));
+  max-height: min(78svh, 700px);
+  aspect-ratio: 4 / 5;
+  margin-inline: auto;
+}
+.detail-video-ratio-9-16,
+.detail-video-ratio-1-1,
+.detail-video-ratio-4-5 {
   background:
     radial-gradient(ellipse at 50% 40%, rgba(88, 226, 208, 0.08), transparent 55%), #080908;
-}
-.detail-video-short-form video.video-player-frame {
-  width: auto;
-  height: auto;
-  max-width: 100%;
-  max-height: min(78svh, 820px);
-  aspect-ratio: auto;
-  object-fit: contain;
-}
-.detail-video-short-form iframe.video-player-frame {
-  width: auto;
-  height: min(78svh, 820px);
-  max-width: 100%;
-  aspect-ratio: 9 / 16;
 }
 .detail-poster-empty {
   height: 50vw;
@@ -2362,9 +2396,6 @@ html.motion-ready #main .motion-reveal.is-visible {
   .project-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 32px 14px;
-  }
-  .project-card:nth-child(3n + 2) {
-    transform: none;
   }
   .camera-intro-copy.is-branding {
     top: 24%;

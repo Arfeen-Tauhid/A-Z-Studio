@@ -81,6 +81,7 @@ const resourceConfig: Record<
         clientName: 'Northstar Coffee',
         description:
           'A warm launch film introducing Northstar Coffee and the people behind every cup.',
+        videoAspectRatio: '16:9',
         mediaMode: 'youtube',
         videoUrl: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
         status: 'draft',
@@ -108,6 +109,15 @@ const resourceConfig: Record<
         label: 'Project description',
         type: 'textarea',
         required: true,
+      },
+      {
+        name: 'videoAspectRatio',
+        label: 'Video aspect ratio',
+        type: 'select',
+        options: ['16:9', '9:16', '1:1', '4:5'],
+        required: true,
+        helpText:
+          'Choose how the video is framed: landscape (16:9), vertical (9:16), square (1:1), or portrait (4:5).',
       },
       {
         name: 'mediaMode',
@@ -693,9 +703,11 @@ function AdminDashboard({
             ? true
             : field.type === 'checkbox'
               ? false
-              : field.type === 'select'
-                ? (field.options?.[0] ?? '')
-                : '',
+              : field.name === 'videoAspectRatio'
+                ? '9:16'
+                : field.type === 'select'
+                  ? (field.options?.[0] ?? '')
+                  : '',
         ]),
       ),
       ...sample?.values,
@@ -715,6 +727,8 @@ function AdminDashboard({
           const value = record[field.name]
           if (field.name === 'deliverables' && Array.isArray(value))
             return [field.name, value.join(', ')]
+          if (field.name === 'videoAspectRatio' && value == null)
+            return [field.name, record.category === 'Short-form' ? '9:16' : '16:9']
           return [
             field.name,
             field.type === 'checkbox' ? Boolean(value) : value == null ? '' : String(value),
@@ -1288,6 +1302,18 @@ function AdminDashboard({
                                 thumbnailPublicId: '',
                                 videoUrl: '',
                                 videoPublicId: '',
+                              })
+                            } else if (activeTab === 'projects' && field.name === 'category') {
+                              const previousDefault =
+                                form.category === 'Short-form' ? '9:16' : '16:9'
+                              const nextDefault =
+                                event.target.value === 'Short-form' ? '9:16' : '16:9'
+                              setForm({
+                                ...form,
+                                category: event.target.value,
+                                ...(form.videoAspectRatio === previousDefault
+                                  ? { videoAspectRatio: nextDefault }
+                                  : {}),
                               })
                             } else {
                               setForm({ ...form, [field.name]: event.target.value })

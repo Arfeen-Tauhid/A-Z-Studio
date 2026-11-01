@@ -6,17 +6,19 @@ import { youtubeThumbnailUrl } from '../../lib/youtube'
 
 export function ProjectCard({ project, index = 0 }: { project: Project; index?: number }) {
   const isShortForm = project.category.trim().toLowerCase() === 'short-form'
+  const aspectRatio = project.videoAspectRatio ?? (isShortForm ? '9:16' : '16:9')
+  const aspectRatioClass = aspectRatio.replace(':', '-')
   const thumbnailUrl =
     project.thumbnailUrl ?? (project.videoUrl && youtubeThumbnailUrl(project.videoUrl))
 
   return (
     <article
-      className={`project-card project-card-${index % 3}${isShortForm ? ' project-card-short-form' : ''}`}
+      className={`project-card project-card-${index % 3} project-card-ratio-${aspectRatioClass}`}
     >
       <Link
         className="project-image-link"
         to={`/work/${project.slug}`}
-        aria-label={`${isShortForm ? 'Watch reel' : 'View project'}: ${project.title}`}
+        aria-label={`${project.videoUrl ? 'Watch video' : 'View project'}: ${project.title}`}
         onPointerEnter={() => preloadRoute(`/work/${project.slug}`)}
         onFocus={() => preloadRoute(`/work/${project.slug}`)}
       >
@@ -30,12 +32,12 @@ export function ProjectCard({ project, index = 0 }: { project: Project; index?: 
             </span>
           </div>
         )}
-        {isShortForm && (
+        {project.videoUrl && (
           <span className="project-watch" aria-hidden="true">
             <span className="project-watch-icon">
               <Play size={19} fill="currentColor" />
             </span>
-            <span>Watch reel</span>
+            <span>Watch Video</span>
           </span>
         )}
         <span className="project-open">

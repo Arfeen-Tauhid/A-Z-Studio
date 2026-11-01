@@ -202,6 +202,12 @@ const resourceConfig: Record<
       },
       { name: 'commentScreenshotPublicId', label: 'Feedback screenshot storage ID', hidden: true },
       { name: 'rating', label: 'Rating', type: 'number', min: 1, max: 5, required: true },
+      {
+        name: 'status',
+        label: 'Publication status',
+        type: 'select',
+        options: ['draft', 'approved'],
+      },
     ],
   },
   services: {
@@ -1220,6 +1226,11 @@ function AdminDashboard({
                           {activeTab === 'projects' && editing && form.status === 'archived' && (
                             <option value="archived">Archived</option>
                           )}
+                          {activeTab === 'testimonials' &&
+                            editing &&
+                            form.status === 'archived' && (
+                              <option value="archived">Archived</option>
+                            )}
                         </select>
                       ) : field.type === 'checkbox' ? (
                         <input

@@ -167,6 +167,19 @@ describe('testimonial validation', () => {
 
     assert.equal(testimonial.clientCountry, 'United States')
     assert.equal(testimonial.clientChannelName, 'Northstar Coffee')
+    assert.equal(testimonial.status, 'draft')
+    assert.equal(
+      testimonialSchema.parse({
+        clientName: 'Alex Morgan',
+        clientCountry: 'United States',
+        clientChannelName: 'Northstar Coffee',
+        quote: 'The final video captured exactly what makes our brand special.',
+        commentScreenshotUrl: 'https://media.example.com/feedback.png',
+        rating: 5,
+        status: 'approved',
+      }).status,
+      'approved',
+    )
     assert.equal(
       testimonialSchema.safeParse({
         clientName: 'Alex Morgan',

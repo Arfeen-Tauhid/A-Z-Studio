@@ -14,9 +14,21 @@ type Client = {
   socialHandle?: string
 }
 
+type Testimonial = {
+  _id: string
+  clientName: string
+  clientCountry: string
+  clientChannelName: string
+  quote: string
+  commentScreenshotUrl: string
+  rating: number
+}
+
 export function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([])
+  const [testimonialState, setTestimonialState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [ratingAverage, setRatingAverage] = useState(0)
   const [ratingCount, setRatingCount] = useState(0)
   const [rating, setRating] = useState(0)
@@ -27,6 +39,15 @@ export function ClientsPage() {
   const [reviewError, setReviewError] = useState('')
   const [reviewNotice, setReviewNotice] = useState('')
   const [submittingRating, setSubmittingRating] = useState(false)
+
+  useEffect(() => {
+    apiRequest<Testimonial[]>('/api/public/testimonials')
+      .then((items) => {
+        setTestimonials(items)
+        setTestimonialState('ready')
+      })
+      .catch(() => setTestimonialState('error'))
+  }, [])
 
   useEffect(() => {
     Promise.all([
@@ -139,6 +160,47 @@ export function ClientsPage() {
           <span>BUILT ON COLLABORATION</span>
           <p>Client project highlights will appear here as approved stories are published.</p>
         </div>
+      )}
+      {testimonialState === 'error' && (
+        <p className="inline-error">Client testimonials are temporarily unavailable.</p>
+      )}
+      {testimonialState === 'ready' && testimonials.length > 0 && (
+        <section className="testimonial-section" aria-labelledby="testimonials-heading">
+          <span className="eyebrow">KIND WORDS</span>
+          <h2 id="testimonials-heading">Client testimonials</h2>
+          <div className="testimonial-grid">
+            {testimonials.map((testimonial) => (
+              <article className="testimonial-card" key={testimonial._id}>
+                <div
+                  className="testimonial-rating"
+                  aria-label={`${testimonial.rating} out of 5 stars`}
+                >
+                  {Array.from({ length: 5 }, (_, index) => (
+                    <Star
+                      key={index}
+                      size={15}
+                      fill={index < testimonial.rating ? 'currentColor' : 'none'}
+                    />
+                  ))}
+                </div>
+                <blockquote>{testimonial.quote}</blockquote>
+                <figure className="testimonial-feedback">
+                  <img
+                    src={testimonial.commentScreenshotUrl}
+                    alt={`Feedback comment from ${testimonial.clientName}`}
+                    loading="lazy"
+                  />
+                </figure>
+                <p className="testimonial-attribution">
+                  <strong>{testimonial.clientName}</strong>
+                  <span>
+                    {testimonial.clientChannelName} · {testimonial.clientCountry}
+                  </span>
+                </p>
+              </article>
+            ))}
+          </div>
+        </section>
       )}
       <section className="review-section" aria-labelledby="review-heading">
         <div>

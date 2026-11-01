@@ -566,10 +566,7 @@ const testimonialsResource: ContentResource = {
     return { items, total }
   },
   async create(input) {
-    return TestimonialModel.create({
-      ...testimonialSchema.parse(input),
-      status: 'approved',
-    })
+    return TestimonialModel.create(testimonialSchema.parse(input))
   },
   async update(id, input) {
     const parsed = testimonialSchema

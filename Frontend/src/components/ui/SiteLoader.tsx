@@ -10,8 +10,6 @@ export function SiteLoader() {
   useEffect(() => {
     if (window.location.pathname.startsWith('/admin')) return
 
-    let minimumReached = false
-    let pageLoaded = document.readyState === 'complete'
     let isClosing = false
     let exitTimer = 0
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -21,27 +19,12 @@ export function SiteLoader() {
       setPhase('closing')
       exitTimer = window.setTimeout(() => setPhase('done'), reducedMotion ? 50 : 560)
     }
-    const closeWhenReady = () => {
-      if (minimumReached && pageLoaded) close()
-    }
-    const handleLoad = () => {
-      pageLoaded = true
-      closeWhenReady()
-    }
 
-    const minimumTimer = window.setTimeout(() => {
-      minimumReached = true
-      closeWhenReady()
-    }, reducedMotion ? 250 : 2000)
-    const maximumTimer = window.setTimeout(close, 3400)
-
-    if (!pageLoaded) window.addEventListener('load', handleLoad, { once: true })
+    const minimumTimer = window.setTimeout(close, reducedMotion ? 150 : 500)
 
     return () => {
       window.clearTimeout(minimumTimer)
-      window.clearTimeout(maximumTimer)
       window.clearTimeout(exitTimer)
-      window.removeEventListener('load', handleLoad)
     }
   }, [])
 

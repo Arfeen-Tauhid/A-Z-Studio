@@ -283,6 +283,7 @@ const siteSettingsSchema = new Schema(
   {
     key: { type: String, required: true, unique: true, default: 'main' },
     studioEmail: { type: String, trim: true, maxlength: 254 },
+    inquiryNotificationEmail: { type: String, trim: true, lowercase: true, maxlength: 254 },
     discordId: { type: String, trim: true, maxlength: 100 },
     contactNumber: { type: String, trim: true, maxlength: 40 },
     instagramUrl: { type: String, trim: true, maxlength: 2048 },

@@ -22,6 +22,7 @@ export type StudioService = {
 
 export type SiteSettings = {
   studioEmail?: string
+  inquiryNotificationEmail?: string
   discordId?: string
   contactNumber?: string
   instagramUrl?: string

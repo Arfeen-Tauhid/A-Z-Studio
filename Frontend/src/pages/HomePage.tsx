@@ -25,19 +25,26 @@ const steps = [
 
 export function HomePage() {
   const reducedMotion = useReducedMotion()
-  const { replayIntro } = useOutletContext<{ replayIntro: () => void }>()
+  const {
+    replayIntro,
+    settings,
+    settingsUnavailable,
+  } = useOutletContext<{
+    replayIntro: () => void
+    settings: SiteSettings
+    settingsUnavailable: boolean
+  }>()
   const [projects, setProjects] = useState<Project[]>([])
   const [projectState, setProjectState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [services, setServices] = useState<StudioService[]>([])
   const [serviceState, setServiceState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [clients, setClients] = useState<{ _id: string; name: string }[]>([])
   const [proofState, setProofState] = useState<'loading' | 'ready' | 'error'>('loading')
-  const [homeHeadline, setHomeHeadline] = useState('Ideas, shaped\ninto stories.')
-  const [homeDescription, setHomeDescription] = useState(
-    'Thoughtful video editing, motion design, podcast production, and finishing for ambitious brands and creators across the United States, the Gulf region, and beyond.',
-  )
-  const [showreelUrl, setShowreelUrl] = useState('')
-  const [settingsError, setSettingsError] = useState(false)
+  const homeHeadline = settings.homeHeadline || 'Ideas, shaped\ninto stories.'
+  const homeDescription =
+    settings.homeDescription ||
+    'Thoughtful video editing, motion design, podcast production, and finishing for ambitious brands and creators across the United States, the Gulf region, and beyond.'
+  const showreelUrl = settings.showreelUrl ?? ''
   const [inquiryNumber, setInquiryNumber] = useState('')
   const [inquiryStatus, setInquiryStatus] = useState('')
   const [inquiryError, setInquiryError] = useState('')
@@ -71,13 +78,6 @@ export function HomePage() {
         setProofState('ready')
       })
       .catch(() => setProofState('error'))
-    apiRequest<SiteSettings>('/api/public/site-settings')
-      .then((settings) => {
-        if (settings.homeHeadline) setHomeHeadline(settings.homeHeadline)
-        if (settings.homeDescription) setHomeDescription(settings.homeDescription)
-        if (settings.showreelUrl) setShowreelUrl(settings.showreelUrl)
-      })
-      .catch(() => setSettingsError(true))
   }, [])
 
   const [firstHeadlineLine, ...remainingHeadlineLines] = homeHeadline.split('\n')
@@ -159,7 +159,7 @@ export function HomePage() {
             >
               {homeDescription}
             </motion.p>
-            {settingsError && (
+            {settingsUnavailable && (
               <p className="inline-error settings-warning">
                 Custom site settings couldn’t be loaded; default studio copy is shown.
               </p>
@@ -213,6 +213,7 @@ export function HomePage() {
               className="hero-reel"
               source={showreelUrl}
               title="A Z Studios showreel"
+              poster="https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?auto=format&fit=crop&w=1500&q=85"
               controls={false}
               showSoundToggle={false}
             />

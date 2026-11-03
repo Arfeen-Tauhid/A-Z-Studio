@@ -296,6 +296,7 @@ export const testimonialSchema = z.object({
 
 export const siteSettingsSchema = z.object({
   studioEmail: z.union([z.email(), z.literal('')]).optional(),
+  inquiryNotificationEmail: z.union([z.email(), z.literal('')]).optional(),
   discordId: optionalText(100),
   contactNumber: optionalText(40),
   instagramUrl: url,

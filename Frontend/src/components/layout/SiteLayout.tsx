@@ -262,7 +262,7 @@ export function SiteLayout() {
             </div>
           }
         >
-          <Outlet context={{ replayIntro }} />
+          <Outlet context={{ replayIntro, settings, settingsUnavailable }} />
         </Suspense>
       </main>
       <footer className={`site-footer${isHomePage ? ' site-footer-home' : ''}`}>

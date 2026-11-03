@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { apiRequest, ApiRequestError, type PageResult } from '../lib/api'
+import { apiRequest, ApiRequestError, type PageResult, type SiteSettings } from '../lib/api'
 import { sendStudioInquiryNotification } from '../lib/emailjs'
 import { isDirectVideoUrl } from '../lib/projectMedia'
 import { youtubeVideoId } from '../lib/youtube'
@@ -73,6 +73,14 @@ type Field = {
 type ResourceSample = {
   description: string
   values: Record<string, string | boolean>
+}
+type DashboardStat = { label: string; value: number | string }
+
+function requestErrorMessage(error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message : fallback
+  if (!(error instanceof ApiRequestError) || error.details.length === 0) return message
+  const details = error.details.map(({ field, message: detail }) => `${field}: ${detail}`).join(' ')
+  return `${message} ${details}`
 }
 type UploadSignature = {
   timestamp: number
@@ -270,6 +278,13 @@ const resourceConfig: Record<
     label: 'Site settings',
     fields: [
       { name: 'studioEmail', label: 'Studio contact email', type: 'email' },
+      {
+        name: 'inquiryNotificationEmail',
+        label: 'Inquiry notification recipient',
+        type: 'email',
+        helpText:
+          'Inquiry notification emails are sent here. Leave blank to use the studio contact email.',
+      },
       { name: 'contactNumber', label: 'Contact number', type: 'tel' },
       { name: 'discordId', label: 'Discord ID' },
       { name: 'instagramUrl', label: 'Instagram URL', type: 'url' },
@@ -556,15 +571,19 @@ function AdminDashboard({
   const [records, setRecords] = useState<CmsRecord[]>([])
   const [inquiries, setInquiries] = useState<CmsRecord[]>([])
   const [admins, setAdmins] = useState<AdminRecord[]>([])
-  const [counts, setCounts] = useState({
-    projects: 0,
-    inquiries: 0,
-    publishedProjects: 0,
-    newInquiries: 0,
-  })
+  const [dashboardStats, setDashboardStats] = useState<DashboardStat[]>([])
+  const [newInquiriesCount, setNewInquiriesCount] = useState(0)
+  const [dashboardLoading, setDashboardLoading] = useState(true)
   const [loading, setLoading] = useState(true)
+  const [savingContent, setSavingContent] = useState(false)
+  const [savedContentSnapshot, setSavedContentSnapshot] = useState<string | null>(null)
+  const [savingPermissions, setSavingPermissions] = useState(false)
+  const [savedPermissionSnapshot, setSavedPermissionSnapshot] = useState<string | null>(null)
+  const [savingBlogPost, setSavingBlogPost] = useState(false)
+  const [savedBlogPostSnapshot, setSavedBlogPostSnapshot] = useState<string | null>(null)
   const sectionCache = useRef(new Map<string, { items: CmsRecord[]; pages: number }>())
   const requestId = useRef(0)
+  const dashboardRequestId = useRef(0)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [notice, setNotice] = useState('')
@@ -665,40 +684,45 @@ function AdminDashboard({
     }
   }, [activeTab, contentPage, statusFilter])
 
-  const refreshDashboard = useCallback(async () => {
-    try {
-      const dashboard = await apiRequest<Partial<typeof counts>>('/api/admin/dashboard')
-      setCounts({
-        projects: dashboard.projects ?? 0,
-        publishedProjects: dashboard.publishedProjects ?? 0,
-        inquiries: dashboard.inquiries ?? 0,
-        newInquiries: dashboard.newInquiries ?? 0,
-      })
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error ? requestError.message : 'Unable to load dashboard summary.',
-      )
+  const refreshDashboard = useCallback(
+    async (section: AdminTab = activeTab) => {
+      const currentRequestId = ++dashboardRequestId.current
+      try {
+        const dashboard = await apiRequest<{
+          stats?: DashboardStat[]
+          newInquiries?: number
+        }>(`/api/admin/dashboard?section=${encodeURIComponent(section)}`)
+        if (currentRequestId === dashboardRequestId.current) {
+          setDashboardStats(dashboard.stats ?? [])
+          setNewInquiriesCount(dashboard.newInquiries ?? 0)
+        }
+      } catch (requestError) {
+        if (currentRequestId === dashboardRequestId.current) {
+          setDashboardStats([])
+          setError(
+            requestError instanceof Error
+              ? requestError.message
+              : 'Unable to load dashboard summary.',
+          )
+        }
+      } finally {
+        if (currentRequestId === dashboardRequestId.current) setDashboardLoading(false)
+      }
+    },
+    [activeTab],
+  )
+
+  function refreshAfterMutation() {
+    for (const key of sectionCache.current.keys()) {
+      if (key.startsWith(`${activeTab}:`)) sectionCache.current.delete(key)
     }
-  }, [])
+    void loadData()
+    void refreshDashboard()
+  }
 
   useEffect(() => {
-    apiRequest<Partial<typeof counts>>('/api/admin/dashboard')
-      .then((dashboard) => {
-        setCounts({
-          projects: dashboard.projects ?? 0,
-          publishedProjects: dashboard.publishedProjects ?? 0,
-          inquiries: dashboard.inquiries ?? 0,
-          newInquiries: dashboard.newInquiries ?? 0,
-        })
-      })
-      .catch((requestError: unknown) => {
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : 'Unable to load dashboard summary.',
-        )
-      })
-  }, [])
+    void Promise.resolve().then(() => refreshDashboard())
+  }, [refreshDashboard])
 
   useEffect(() => {
     void Promise.resolve().then(loadData)
@@ -723,8 +747,13 @@ function AdminDashboard({
   }
 
   function selectTab(tab: AdminTab) {
+    if (tab !== activeTab) {
+      setDashboardStats([])
+      setDashboardLoading(true)
+    }
     setActiveTab(tab)
     setEditing(null)
+    setSavedContentSnapshot(null)
     setForm({})
     setSearch('')
     setStatusFilter('')
@@ -858,6 +887,7 @@ function AdminDashboard({
 
   function openEdit(record: CmsRecord) {
     setEditing(record)
+    setSavedContentSnapshot(null)
     setFieldErrors({})
     setForm({
       ...Object.fromEntries(
@@ -890,6 +920,7 @@ function AdminDashboard({
 
   async function saveContent(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (savingContent) return
     if (activeTab === 'admins' || activeTab === 'create-admin' || activeTab === 'activity') return
     const payload: Record<string, unknown> = { ...form }
     if (activeTab === 'projects') {
@@ -905,7 +936,11 @@ function AdminDashboard({
         if (!youtubeVideo && !hasThumbnail)
           missingMedia.thumbnailUrl = 'Paste a thumbnail image URL or upload an image.'
         setFieldErrors(missingMedia)
-        setError('Please correct the highlighted fields.')
+        setError(
+          Object.entries(missingMedia)
+            .map(([field, message]) => `${field}: ${message}`)
+            .join(' '),
+        )
         return
       }
       if (activeTab === 'projects' && payload.status === 'published') {
@@ -926,7 +961,11 @@ function AdminDashboard({
       if (!form.rating || Number(form.rating) < 1 || Number(form.rating) > 5)
         testimonialErrors.rating = 'Enter a rating from 1 to 5.'
       setFieldErrors(testimonialErrors)
-      setError('Please correct the highlighted fields.')
+      setError(
+        Object.entries(testimonialErrors)
+          .map(([field, message]) => `${field}: ${message}`)
+          .join(' '),
+      )
       return
     }
     const fields =
@@ -946,22 +985,24 @@ function AdminDashboard({
     setError('')
     setNotice('')
     setFieldErrors({})
+    setSavingContent(true)
     try {
-      await apiRequest(
+      const savedRecord = await apiRequest<CmsRecord>(
         editing ? `/api/admin/${activeTab}/${editing._id}` : `/api/admin/${activeTab}`,
         {
           method: editing ? 'PATCH' : 'POST',
           body: JSON.stringify(payload),
         },
       )
-      setEditing(null)
-      setLoading(true)
+      setEditing(savedRecord)
+      setSavedContentSnapshot(JSON.stringify(form))
       setNotice('Changes saved.')
-      await Promise.all([loadData(), refreshDashboard()])
+      refreshAfterMutation()
     } catch (requestError) {
-      const hasFieldErrors = setRequestFieldErrors(requestError)
-      setError(requestError instanceof Error ? requestError.message : 'Could not save this item.')
-      if (hasFieldErrors) setError('Please correct the highlighted fields.')
+      setRequestFieldErrors(requestError)
+      setError(requestErrorMessage(requestError, 'Could not save this item.'))
+    } finally {
+      setSavingContent(false)
     }
   }
 
@@ -974,9 +1015,8 @@ function AdminDashboard({
     setError('')
     try {
       await apiRequest(`/api/admin/${activeTab}/${record._id}`, { method: 'DELETE' })
-      setLoading(true)
       setNotice('Item deleted.')
-      await Promise.all([loadData(), refreshDashboard()])
+      refreshAfterMutation()
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Could not delete this item.')
     }
@@ -990,9 +1030,8 @@ function AdminDashboard({
         body: JSON.stringify({ status, comment }),
       })
       setPendingInquiryUpdate(null)
-      setLoading(true)
       setNotice('Inquiry status updated.')
-      await Promise.all([loadData(), refreshDashboard()])
+      refreshAfterMutation()
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Could not update inquiry.')
     }
@@ -1003,7 +1042,9 @@ function AdminDashboard({
     setNotice('')
     setSendingInquiryNotification(record._id)
     try {
+      const settings = await apiRequest<SiteSettings>('/api/public/site-settings')
       await sendStudioInquiryNotification({
+        recipientEmail: settings.inquiryNotificationEmail || settings.studioEmail || '',
         inquiryNumber: typeof record.inquiryNumber === 'string' ? record.inquiryNumber : undefined,
         name: String(record.name ?? ''),
         email: String(record.email ?? ''),
@@ -1049,44 +1090,33 @@ function AdminDashboard({
       setNotice(
         `Employee ${createdAdmin.adminNumber} created. They can sign in with this Employee ID or their email.`,
       )
-      setLoading(true)
-      await loadData()
+      refreshAfterMutation()
     } catch (requestError) {
-      const hasFieldErrors = setRequestFieldErrors(requestError)
-      setError(
-        hasFieldErrors
-          ? 'Please correct the highlighted fields.'
-          : requestError instanceof Error
-            ? requestError.message
-            : 'Could not create admin.',
-      )
+      setRequestFieldErrors(requestError)
+      setError(requestErrorMessage(requestError, 'Could not create admin.'))
     }
   }
 
   async function saveAdminPermissions(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!editingAdminPermissions || adminPermissionDraft.length === 0) return
+    if (!editingAdminPermissions || adminPermissionDraft.length === 0 || savingPermissions) return
     setError('')
     setNotice('')
     setFieldErrors({})
+    setSavingPermissions(true)
     try {
       await apiRequest(`/api/admin/admins/${editingAdminPermissions._id}/permissions`, {
         method: 'PATCH',
         body: JSON.stringify({ permissions: adminPermissionDraft }),
       })
-      setEditingAdminPermissions(null)
-      setAdminPermissionDraft([])
+      setSavedPermissionSnapshot(JSON.stringify(adminPermissionDraft))
       setNotice('Admin permissions updated.')
-      await loadData()
+      refreshAfterMutation()
     } catch (requestError) {
-      const hasFieldErrors = setRequestFieldErrors(requestError)
-      setError(
-        hasFieldErrors
-          ? 'Please correct the highlighted fields.'
-          : requestError instanceof Error
-            ? requestError.message
-            : 'Could not update permissions.',
-      )
+      setRequestFieldErrors(requestError)
+      setError(requestErrorMessage(requestError, 'Could not update permissions.'))
+    } finally {
+      setSavingPermissions(false)
     }
   }
 
@@ -1096,8 +1126,7 @@ function AdminDashboard({
     try {
       await apiRequest(`/api/admin/admins/${admin._id}`, { method: 'DELETE' })
       setNotice('Admin access revoked.')
-      setLoading(true)
-      await loadData()
+      refreshAfterMutation()
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Could not revoke access.')
     }
@@ -1113,8 +1142,7 @@ function AdminDashboard({
         body: JSON.stringify({ loginHeld }),
       })
       setNotice(loginHeld ? `Login held for ${admin.email}.` : `Login restored for ${admin.email}.`)
-      setLoading(true)
-      await loadData()
+      refreshAfterMutation()
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -1132,9 +1160,8 @@ function AdminDashboard({
         method: 'PATCH',
         body: JSON.stringify({ status }),
       })
-      setLoading(true)
       setNotice(status === 'approved' ? 'Writing request approved.' : 'Writing request declined.')
-      await loadData()
+      refreshAfterMutation()
     } catch (requestError) {
       setError(
         requestError instanceof Error ? requestError.message : 'Could not review the request.',
@@ -1158,18 +1185,11 @@ function AdminDashboard({
         password: authorPassword,
       })
       setWriterPasswords((current) => ({ ...current, [record._id]: '' }))
-      setLoading(true)
       setNotice('Blog writer account created. Share the one-time credentials below securely.')
-      await loadData()
+      refreshAfterMutation()
     } catch (requestError) {
-      const hasFieldErrors = setRequestFieldErrors(requestError)
-      setError(
-        hasFieldErrors
-          ? 'Please correct the highlighted fields.'
-          : requestError instanceof Error
-            ? requestError.message
-            : 'Could not create the blog writer account.',
-      )
+      setRequestFieldErrors(requestError)
+      setError(requestErrorMessage(requestError, 'Could not create the blog writer account.'))
     }
   }
 
@@ -1201,9 +1221,8 @@ function AdminDashboard({
         method: 'PATCH',
         body: JSON.stringify({ loginHeld }),
       })
-      setLoading(true)
       setNotice(loginHeld ? 'Blog writer login placed on hold.' : 'Blog writer login restored.')
-      await loadData()
+      refreshAfterMutation()
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -1251,6 +1270,7 @@ function AdminDashboard({
 
   function editBlogPost(record: CmsRecord) {
     setEditingBlogPost(record)
+    setSavedBlogPostSnapshot(null)
     setBlogPostDraft({
       title: String(record.title ?? ''),
       category: String(record.category ?? ''),
@@ -1263,9 +1283,10 @@ function AdminDashboard({
 
   async function saveBlogPost(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!editingBlogPost) return
+    if (!editingBlogPost || savingBlogPost) return
     setError('')
     setNotice('')
+    setSavingBlogPost(true)
     try {
       const updatedPost = await apiRequest<CmsRecord>(
         `/api/admin/blog-posts/${editingBlogPost._id}`,
@@ -1280,12 +1301,12 @@ function AdminDashboard({
       for (const key of sectionCache.current.keys()) {
         if (key.startsWith('blog-posts:')) sectionCache.current.delete(key)
       }
-      setEditingBlogPost(null)
+      setSavedBlogPostSnapshot(JSON.stringify(blogPostDraft))
       setNotice('Blog article updated.')
     } catch (requestError) {
-      setError(
-        requestError instanceof Error ? requestError.message : 'Could not update the article.',
-      )
+      setError(requestErrorMessage(requestError, 'Could not update the article.'))
+    } finally {
+      setSavingBlogPost(false)
     }
   }
 
@@ -1415,7 +1436,7 @@ function AdminDashboard({
               onClick={() => selectTab('inquiries')}
             >
               <Users size={16} />
-              Inquiries <span className="admin-badge">{counts.newInquiries}</span>
+              Inquiries <span className="admin-badge">{newInquiriesCount}</span>
             </button>
           )}
           {canCreateAdmins && role !== 'owner' && (
@@ -1555,26 +1576,19 @@ function AdminDashboard({
                 </button>
               )}
           </div>
-          <div className={`admin-stats${!canManageInquiries ? ' limited-admin-stats' : ''}`}>
-            <div>
-              <span>Active projects</span>
-              <strong>{counts.projects}</strong>
-            </div>
-            <div>
-              <span>Published projects</span>
-              <strong>{counts.publishedProjects}</strong>
-            </div>
-            {canManageInquiries && (
-              <>
-                <div>
-                  <span>Total inquiries</span>
-                  <strong>{counts.inquiries}</strong>
+          <div className="admin-stats">
+            {dashboardLoading && dashboardStats.length === 0 ? (
+              <div>
+                <span>Loading summary</span>
+                <strong>…</strong>
+              </div>
+            ) : (
+              dashboardStats.map((stat) => (
+                <div key={stat.label}>
+                  <span>{stat.label}</span>
+                  <strong>{stat.value}</strong>
                 </div>
-                <div>
-                  <span>New inquiries</span>
-                  <strong>{counts.newInquiries}</strong>
-                </div>
-              </>
+              ))
             )}
           </div>
 
@@ -1761,9 +1775,18 @@ function AdminDashboard({
                   <button
                     className="button button-accent"
                     type="submit"
-                    disabled={adminPermissionDraft.length === 0}
+                    disabled={
+                      adminPermissionDraft.length === 0 ||
+                      savingPermissions ||
+                      savedPermissionSnapshot === JSON.stringify(adminPermissionDraft)
+                    }
                   >
-                    <Save size={15} /> Save permissions
+                    <Save size={15} />{' '}
+                    {savingPermissions
+                      ? 'Saving…'
+                      : savedPermissionSnapshot === JSON.stringify(adminPermissionDraft)
+                        ? 'Saved'
+                        : 'Save permissions'}
                   </button>
                 </div>
               </form>
@@ -1941,9 +1964,18 @@ function AdminDashboard({
                 <button
                   type="submit"
                   className="button button-accent"
-                  disabled={uploadingField !== null}
+                  disabled={
+                    uploadingField !== null ||
+                    savingContent ||
+                    savedContentSnapshot === JSON.stringify(form)
+                  }
                 >
-                  <Save size={15} /> Save changes
+                  <Save size={15} />{' '}
+                  {savingContent
+                    ? 'Saving…'
+                    : savedContentSnapshot === JSON.stringify(form)
+                      ? 'Saved'
+                      : 'Save changes'}
                 </button>
                 <button
                   className="admin-cancel"
@@ -2182,6 +2214,7 @@ function AdminDashboard({
                                 onClick={() => {
                                   setEditingAdminPermissions(admin)
                                   setAdminPermissionDraft(admin.permissions ?? [])
+                                  setSavedPermissionSnapshot(null)
                                 }}
                               >
                                 Edit permissions
@@ -2403,8 +2436,19 @@ function AdminDashboard({
                       </label>
                     </div>
                     <div className="admin-editor-actions">
-                      <button className="button button-accent" type="submit">
-                        <Save size={15} /> Save article
+                      <button
+                        className="button button-accent"
+                        type="submit"
+                        disabled={
+                          savingBlogPost || savedBlogPostSnapshot === JSON.stringify(blogPostDraft)
+                        }
+                      >
+                        <Save size={15} />{' '}
+                        {savingBlogPost
+                          ? 'Saving…'
+                          : savedBlogPostSnapshot === JSON.stringify(blogPostDraft)
+                            ? 'Saved'
+                            : 'Save article'}
                       </button>
                     </div>
                   </form>

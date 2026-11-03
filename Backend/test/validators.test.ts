@@ -300,6 +300,7 @@ describe('site settings validation', () => {
   it('accepts contact, social, and homepage showreel settings', () => {
     const settings = siteSettingsSchema.parse({
       studioEmail: 'hello@example.com',
+      inquiryNotificationEmail: 'inquiries@example.com',
       contactNumber: ' +1 (555) 123-4567 ',
       discordId: 'azstudio#1234',
       instagramUrl: 'https://instagram.com/azstudio',
@@ -310,6 +311,7 @@ describe('site settings validation', () => {
     })
 
     assert.equal(settings.studioEmail, 'hello@example.com')
+    assert.equal(settings.inquiryNotificationEmail, 'inquiries@example.com')
     assert.equal(settings.contactNumber, '+1 (555) 123-4567')
     assert.equal(settings.discordId, 'azstudio#1234')
     assert.equal(settings.instagramUrl, 'https://instagram.com/azstudio')
@@ -319,6 +321,10 @@ describe('site settings validation', () => {
     assert.equal(settings.showreelUrl, 'https://cdn.example.com/showreel.mp4')
     assert.equal(
       siteSettingsSchema.safeParse({ whatsappUrl: 'javascript:alert(1)' }).success,
+      false,
+    )
+    assert.equal(
+      siteSettingsSchema.safeParse({ inquiryNotificationEmail: 'not-an-email' }).success,
       false,
     )
     assert.equal(siteSettingsSchema.safeParse({ contactNumber: 'x'.repeat(41) }).success, false)

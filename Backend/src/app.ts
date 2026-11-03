@@ -1004,16 +1004,216 @@ app.get('/api/admin/dashboard', async (request, response) => {
     (request.adminRole === 'limited' &&
       ['projects', 'services', 'clients', 'testimonials'].includes(permission)) ||
     permissions.includes(permission)
-  const [projects, inquiries, publishedProjects, newInquiries] = await Promise.all([
-    canRead('projects')
-      ? ProjectModel.countDocuments({ status: { $ne: 'archived' } })
-      : Promise.resolve(0),
-    canRead('inquiries') ? InquiryModel.countDocuments() : Promise.resolve(0),
-    canRead('projects') ? ProjectModel.countDocuments({ status: 'published' }) : Promise.resolve(0),
-    canRead('inquiries') ? InquiryModel.countDocuments({ status: 'new' }) : Promise.resolve(0),
-  ])
-  sendData(response, { projects, inquiries, publishedProjects, newInquiries })
+  const section = typeof request.query.section === 'string' ? request.query.section : 'projects'
+  const sectionPermissions: Record<string, string> = {
+    projects: 'projects',
+    clients: 'clients',
+    testimonials: 'testimonials',
+    services: 'services',
+    'site-settings': 'site-settings',
+    ratings: 'ratings',
+    inquiries: 'inquiries',
+    admins: 'create-admins',
+    'create-admin': 'create-admins',
+    activity: 'activity',
+    'blog-requests': 'blog-writing-requests',
+    'blog-authors': 'blog-writers',
+    'blog-posts': 'blog-post-review',
+  }
+  const permission = sectionPermissions[section]
+  if (!permission) throw new HttpError(400, 'Choose a valid admin dashboard section.')
+  if (!canRead(permission)) {
+    sendData(response, { stats: [], newInquiries: 0 })
+    return
+  }
+
+  const newInquiriesPromise =
+    section !== 'inquiries' && canRead('inquiries')
+      ? InquiryModel.countDocuments({ status: 'new' })
+      : Promise.resolve(0)
+  const count = (label: string, value: number): DashboardStat => ({ label, value })
+  let stats: DashboardStat[]
+
+  switch (section) {
+    case 'projects': {
+      const [active, published, draft] = await Promise.all([
+        ProjectModel.countDocuments({ status: { $ne: 'archived' } }),
+        ProjectModel.countDocuments({ status: 'published' }),
+        ProjectModel.countDocuments({ status: 'draft' }),
+      ])
+      stats = [
+        count('Active projects', active),
+        count('Published', published),
+        count('Draft', draft),
+      ]
+      break
+    }
+    case 'inquiries': {
+      const [total, newInquiries, inProgress, closed] = await Promise.all([
+        InquiryModel.countDocuments(),
+        InquiryModel.countDocuments({ status: 'new' }),
+        InquiryModel.countDocuments({ status: 'in_progress' }),
+        InquiryModel.countDocuments({ status: 'closed' }),
+      ])
+      stats = [
+        count('Total inquiries', total),
+        count('New', newInquiries),
+        count('In progress', inProgress),
+        count('Closed', closed),
+      ]
+      break
+    }
+    case 'services': {
+      const [total, active] = await Promise.all([
+        ServiceModel.countDocuments(),
+        ServiceModel.countDocuments({ isActive: true }),
+      ])
+      stats = [
+        count('Total services', total),
+        count('Active', active),
+        count('Inactive', total - active),
+      ]
+      break
+    }
+    case 'clients': {
+      const [total, published] = await Promise.all([
+        ClientModel.countDocuments(),
+        ClientModel.countDocuments({ isPublished: true }),
+      ])
+      stats = [
+        count('Total clients', total),
+        count('Published', published),
+        count('Unpublished', total - published),
+      ]
+      break
+    }
+    case 'testimonials': {
+      const [total, approved, draft, archived] = await Promise.all([
+        TestimonialModel.countDocuments(),
+        TestimonialModel.countDocuments({ status: 'approved' }),
+        TestimonialModel.countDocuments({ status: 'draft' }),
+        TestimonialModel.countDocuments({ status: 'archived' }),
+      ])
+      stats = [
+        count('Total testimonials', total),
+        count('Approved', approved),
+        count('Draft', draft),
+        count('Archived', archived),
+      ]
+      break
+    }
+    case 'site-settings': {
+      const settings = await SiteSettingsModel.findOne({ key: 'main' })
+        .select(
+          'studioEmail inquiryNotificationEmail contactNumber whatsappUrl instagramUrl youtubeUrl linkedinUrl',
+        )
+        .lean()
+      const contactChannels = [
+        settings?.studioEmail,
+        settings?.inquiryNotificationEmail,
+        settings?.contactNumber,
+        settings?.whatsappUrl,
+      ]
+      const socialLinks = [settings?.instagramUrl, settings?.youtubeUrl, settings?.linkedinUrl]
+      stats = [
+        count('Settings records', settings ? 1 : 0),
+        count('Contact options', contactChannels.filter(Boolean).length),
+        count('Social links', socialLinks.filter(Boolean).length),
+      ]
+      break
+    }
+    case 'ratings': {
+      const [total, result] = await Promise.all([
+        RatingModel.countDocuments(),
+        RatingModel.aggregate<{ average: number }>([
+          { $group: { _id: null, average: { $avg: '$rating' } } },
+        ]),
+      ])
+      stats = [
+        count('Total ratings', total),
+        { label: 'Average rating', value: result[0]?.average.toFixed(1) ?? '0.0' },
+      ]
+      break
+    }
+    case 'admins':
+    case 'create-admin': {
+      const [total, onHold] = await Promise.all([
+        AdminModel.countDocuments(),
+        AdminModel.countDocuments({ loginHeld: true }),
+      ])
+      stats = [
+        count('Admin accounts', total),
+        count('Active', total - onHold),
+        count('On hold', onHold),
+      ]
+      break
+    }
+    case 'blog-requests': {
+      const [total, pending, approved, declined, accountsCreated] = await Promise.all([
+        BlogWritingRequestModel.countDocuments(),
+        BlogWritingRequestModel.countDocuments({ status: 'pending' }),
+        BlogWritingRequestModel.countDocuments({ status: 'approved' }),
+        BlogWritingRequestModel.countDocuments({ status: 'declined' }),
+        BlogWritingRequestModel.countDocuments({ status: 'account_created' }),
+      ])
+      stats = [
+        count('Total requests', total),
+        count('Pending', pending),
+        count('Approved', approved),
+        count('Declined', declined),
+        count('Accounts created', accountsCreated),
+      ]
+      break
+    }
+    case 'blog-authors': {
+      const [total, onHold] = await Promise.all([
+        BlogAuthorModel.countDocuments(),
+        BlogAuthorModel.countDocuments({ loginHeld: true }),
+      ])
+      stats = [
+        count('Total writers', total),
+        count('Active', total - onHold),
+        count('On hold', onHold),
+      ]
+      break
+    }
+    case 'blog-posts': {
+      const [total, pending, published, declined] = await Promise.all([
+        BlogPostModel.countDocuments(),
+        BlogPostModel.countDocuments({ status: 'pending' }),
+        BlogPostModel.countDocuments({ status: 'published' }),
+        BlogPostModel.countDocuments({ status: 'declined' }),
+      ])
+      stats = [
+        count('Total articles', total),
+        count('Pending review', pending),
+        count('Published', published),
+        count('Declined', declined),
+      ]
+      break
+    }
+    case 'activity': {
+      const [total, recent] = await Promise.all([
+        AdminActivityModel.countDocuments(),
+        AdminActivityModel.countDocuments({
+          createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+        }),
+      ])
+      stats = [count('Total activity', total), count('Last 7 days', recent)]
+      break
+    }
+    default:
+      throw new HttpError(400, 'Choose a valid admin dashboard section.')
+  }
+
+  const newInquiries =
+    section === 'inquiries'
+      ? Number(stats.find((stat) => stat.label === 'New')?.value ?? 0)
+      : await newInquiriesPromise
+  sendData(response, { stats, newInquiries })
 })
+
+type DashboardStat = { label: string; value: number | string }
 
 type ContentPage = { items: unknown[]; total: number }
 type ContentResource = {

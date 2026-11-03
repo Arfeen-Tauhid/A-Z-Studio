@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link } from 'react-router-dom'
 import { z } from 'zod'
-import { apiRequest } from '../lib/api'
+import { apiRequest, type SiteSettings } from '../lib/api'
 import { sendStudioInquiryNotification } from '../lib/emailjs'
 
 const inquirySchema = z.object({
@@ -53,7 +53,9 @@ export function ContactPage() {
 
   async function sendEmailNotification(values: Inquiry, inquiryNumber?: string) {
     try {
+      const settings = await apiRequest<SiteSettings>('/api/public/site-settings')
       await sendStudioInquiryNotification({
+        recipientEmail: settings.inquiryNotificationEmail || settings.studioEmail || '',
         inquiryNumber,
         name: values.name,
         email: values.email,

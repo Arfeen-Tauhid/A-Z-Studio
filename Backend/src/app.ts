@@ -2,10 +2,10 @@ import bcrypt from 'bcryptjs'
 import { v2 as cloudinary } from 'cloudinary'
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
-import express, { type Request, type Response } from 'express'
+import express, { type Request, type RequestHandler, type Response } from 'express'
 import { rateLimit } from 'express-rate-limit'
 import { randomInt } from 'node:crypto'
-import * as helmetModule from 'helmet'
+import { createRequire } from 'node:module'
 import jwt from 'jsonwebtoken'
 import mongoose from 'mongoose'
 import { z } from 'zod'
@@ -61,7 +61,7 @@ import {
 } from './validators/index.js'
 
 const app = express()
-const helmet = helmetModule.default
+const helmet = createRequire(import.meta.url)('helmet') as () => RequestHandler
 let databaseConnection: Promise<typeof mongoose> | null = null
 const uploadSchema = z.object({ resourceType: z.enum(['image', 'video']) })
 const uploadedMediaSchema = z.object({

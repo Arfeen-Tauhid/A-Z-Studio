@@ -73,7 +73,24 @@ const cookieSameSite = env.COOKIE_SECURE ? 'none' : 'strict'
 app.disable('x-powered-by')
 if (env.TRUST_PROXY > 0) app.set('trust proxy', env.TRUST_PROXY)
 app.use(helmet())
-app.use(cors({ origin: new URL(env.FRONTEND_ORIGIN).origin, credentials: true }))
+app.use(
+  cors({
+    origin: (requestOrigin, callback) => {
+      if (!requestOrigin) {
+        callback(null, true)
+        return
+      }
+
+      if (env.FRONTEND_ORIGINS.includes(requestOrigin)) {
+        callback(null, true)
+        return
+      }
+
+      callback(new Error('This request origin is not allowed.'))
+    },
+    credentials: true,
+  }),
+)
 app.use(express.json({ limit: '1mb' }))
 app.use(cookieParser())
 app.use((request, response, next) => {

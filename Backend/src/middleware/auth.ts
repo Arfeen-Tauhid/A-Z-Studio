@@ -18,10 +18,21 @@ declare global {
   }
 }
 
+export function isAllowedRequestOrigin(origin: string | undefined) {
+  if (!origin) return true
+
+  try {
+    const normalizedOrigin = new URL(origin).origin
+    return env.FRONTEND_ORIGINS.includes(normalizedOrigin)
+  } catch {
+    return false
+  }
+}
+
 export const requireAdmin: RequestHandler = async (request, _response, next) => {
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
     const origin = request.get('origin')
-    if (origin !== env.FRONTEND_ORIGIN) {
+    if (origin && !isAllowedRequestOrigin(origin)) {
       next(new HttpError(403, 'This request origin is not allowed.'))
       return
     }

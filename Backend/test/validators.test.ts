@@ -27,6 +27,7 @@ import {
   youtubeVideoId,
 } from '../src/services/youtube.js'
 import { canAccessAdminPath, isWebsiteCreator } from '../src/middleware/adminAccess.js'
+import { parseAllowedOrigins } from '../src/config/env.js'
 
 describe('limited admin access', () => {
   it('allows editing projects and services and viewing approved content sections', () => {
@@ -147,6 +148,19 @@ describe('limited admin access', () => {
     assert.equal(canAccessAdminPath('custom', ['blog-post-review'], 'GET', '/blog-authors'), false)
     assert.equal(canAccessAdminPath('limited', ['blog-post-review'], 'GET', '/blog-posts'), true)
     assert.equal(canAccessAdminPath('limited', ['blog-writers'], 'GET', '/blog-authors'), true)
+  })
+})
+
+describe('allowed frontend origins', () => {
+  it('normalizes comma-separated origins and ignores trailing slashes', () => {
+    const origins = parseAllowedOrigins(
+      'https://a-z-studio.vercel.app/, https://a-z-studio-backend.onrender.com/',
+    )
+
+    assert.deepEqual(origins, [
+      'https://a-z-studio.vercel.app',
+      'https://a-z-studio-backend.onrender.com',
+    ])
   })
 })
 

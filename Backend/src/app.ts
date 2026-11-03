@@ -5,7 +5,7 @@ import cors from 'cors'
 import express, { type Request, type Response } from 'express'
 import { rateLimit } from 'express-rate-limit'
 import { randomInt } from 'node:crypto'
-import { default as helmet } from 'helmet'
+import * as helmetModule from 'helmet'
 import jwt from 'jsonwebtoken'
 import mongoose from 'mongoose'
 import { z } from 'zod'
@@ -61,6 +61,7 @@ import {
 } from './validators/index.js'
 
 const app = express()
+const helmet = helmetModule.default
 let databaseConnection: Promise<typeof mongoose> | null = null
 const uploadSchema = z.object({ resourceType: z.enum(['image', 'video']) })
 const uploadedMediaSchema = z.object({

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { SiteLayout } from '../components/layout/SiteLayout'
+import { SiteLoader } from '../components/ui/SiteLoader'
 
 function PointerAura() {
   const auraRef = useRef<HTMLDivElement>(null)
@@ -83,6 +84,7 @@ export function App() {
   return (
     <>
       <PointerAura />
+      <SiteLoader />
       <Routes>
         <Route element={<SiteLayout />}>
           <Route index element={<HomePage />} />

@@ -36,7 +36,7 @@ const process = [
 
 export function ProcessPage() {
   return (
-    <div className="shell page-shell">
+    <div className="shell page-shell process-page">
       <div className="page-intro">
         <span className="eyebrow">A CLEAR, COLLABORATIVE WORKFLOW</span>
         <h1>
@@ -48,6 +48,34 @@ export function ProcessPage() {
           No guesswork, no disappearing act. Just a shared plan, considered creative work, and
           feedback at the right moments.
         </p>
+      </div>
+      <div className="process-edit-timeline" aria-hidden="true">
+        <div className="process-edit-heading">
+          <span>PROJECT TIMELINE</span>
+          <span>5 SEQUENCES · ONE CLEAR STORY</span>
+        </div>
+        <div className="process-edit-ruler">
+          <span>BRIEF</span>
+          <span>PLAN</span>
+          <span>EDIT</span>
+          <span>REVIEW</span>
+          <span>DELIVERY</span>
+        </div>
+        <div className="process-edit-tracks">
+          <span>V1</span>
+          <div>
+            {process.map(([number], index) => (
+              <i className={`process-edit-clip process-edit-clip-${index + 1}`} key={number} />
+            ))}
+          </div>
+          <span>A1</span>
+          <div className="process-edit-wave">
+            {Array.from({ length: 28 }, (_, index) => (
+              <i key={index} />
+            ))}
+          </div>
+          <span className="process-edit-playhead" />
+        </div>
       </div>
       <div className="process-list">
         {process.map(([number, stage, title, copy]) => (

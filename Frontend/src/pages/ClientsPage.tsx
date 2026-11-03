@@ -1,6 +1,7 @@
 import { ArrowUpRight, Star } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { AutoScrollRow } from '../components/ui/AutoScrollRow'
 import { VideoPlayer } from '../components/ui/VideoPlayer'
 import { apiRequest } from '../lib/api'
 
@@ -135,41 +136,51 @@ export function ClientsPage() {
         </p>
       )}
       {state === 'ready' && clients.length > 0 && (
-        <section className="client-grid" aria-label="Client showcases">
-          {clients.map((client) => (
-            <article className="client-card" key={client._id}>
-              <h2>{client.name}</h2>
-              {client.socialHandle && (
-                <p className="client-social">
-                  {client.socialPlatform ? `${client.socialPlatform} · ` : ''}
-                  {client.socialHandle}
-                </p>
-              )}
-              {client.videoUrl && (
-                <VideoPlayer
-                  className="client-video"
-                  source={client.videoUrl}
-                  title={`${client.name} video`}
-                />
-              )}
-              {client.commentScreenshotUrl && (
-                <a
-                  className="client-comment"
-                  href={client.commentScreenshotUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <img
-                    src={client.commentScreenshotUrl}
-                    alt={`Client feedback shared by ${client.name}`}
-                    loading="lazy"
+        <AutoScrollRow
+          items={clients}
+          label="Client showcases"
+          className="client-grid auto-scroll-client-grid"
+          itemClassName="auto-scroll-item client-carousel-item"
+          renderItem={(client, index) => {
+            const isDemo = client.name.startsWith('DEMO ONLY')
+            return (
+              <article className="client-card" key={client._id}>
+                {isDemo && <span className="demo-content-label">DEMO ONLY · SAMPLE ENTRY</span>}
+                <h2>{client.name}</h2>
+                {client.socialHandle && !isDemo && (
+                  <p className="client-social">
+                    {client.socialPlatform ? `${client.socialPlatform} · ` : ''}
+                    {client.socialHandle}
+                  </p>
+                )}
+                {client.videoUrl && (
+                  <VideoPlayer
+                    className="client-video"
+                    source={client.videoUrl}
+                    title={`${client.name} video`}
+                    poster={client.videoThumbnailUrl}
                   />
-                  <span>View client feedback</span>
-                </a>
-              )}
-            </article>
-          ))}
-        </section>
+                )}
+                {client.commentScreenshotUrl && (
+                  <a
+                    className="client-comment"
+                    href={client.commentScreenshotUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <img
+                      src={client.commentScreenshotUrl}
+                      alt={`Client feedback shared by ${client.name}`}
+                      loading={index < 2 ? 'eager' : 'lazy'}
+                      decoding="async"
+                    />
+                    <span>View client feedback</span>
+                  </a>
+                )}
+              </article>
+            )
+          }}
+        />
       )}
       {state === 'ready' && clients.length === 0 && (
         <div className="empty-work">
@@ -184,38 +195,51 @@ export function ClientsPage() {
         <section className="testimonial-section" aria-labelledby="testimonials-heading">
           <span className="eyebrow">KIND WORDS</span>
           <h2 id="testimonials-heading">Client testimonials</h2>
-          <div className="testimonial-grid">
-            {testimonials.map((testimonial) => (
-              <article className="testimonial-card" key={testimonial._id}>
-                <div
-                  className="testimonial-rating"
-                  aria-label={`${testimonial.rating} out of 5 stars`}
-                >
-                  {Array.from({ length: 5 }, (_, index) => (
-                    <Star
-                      key={index}
-                      size={15}
-                      fill={index < testimonial.rating ? 'currentColor' : 'none'}
-                    />
-                  ))}
-                </div>
-                <blockquote>{testimonial.quote}</blockquote>
-                <figure className="testimonial-feedback">
-                  <img
-                    src={testimonial.commentScreenshotUrl}
-                    alt={`Feedback comment from ${testimonial.clientName}`}
-                    loading="lazy"
-                  />
-                </figure>
-                <p className="testimonial-attribution">
-                  <strong>{testimonial.clientName}</strong>
-                  <span>
-                    {testimonial.clientChannelName} · {testimonial.clientCountry}
-                  </span>
-                </p>
-              </article>
-            ))}
-          </div>
+          <AutoScrollRow
+            items={testimonials}
+            label="Client testimonials"
+            className="testimonial-grid auto-scroll-testimonial-grid"
+            itemClassName="auto-scroll-item testimonial-carousel-item"
+            renderItem={(testimonial, index) => {
+              const isDemo = testimonial.clientName.startsWith('DEMO ONLY')
+              return (
+                <article className="testimonial-card" key={testimonial._id}>
+                  {isDemo && (
+                    <span className="demo-content-label">DEMO ONLY · NOT REAL FEEDBACK</span>
+                  )}
+                  <div
+                    className="testimonial-rating"
+                    aria-label={`${testimonial.rating} out of 5 stars`}
+                  >
+                    {Array.from({ length: 5 }, (_, index) => (
+                      <Star
+                        key={index}
+                        size={15}
+                        fill={index < testimonial.rating ? 'currentColor' : 'none'}
+                      />
+                    ))}
+                  </div>
+                  <blockquote>{testimonial.quote}</blockquote>
+                  {!isDemo && (
+                    <figure className="testimonial-feedback">
+                      <img
+                        src={testimonial.commentScreenshotUrl}
+                        alt={`Feedback comment from ${testimonial.clientName}`}
+                        loading={index < 2 ? 'eager' : 'lazy'}
+                        decoding="async"
+                      />
+                    </figure>
+                  )}
+                  <p className="testimonial-attribution">
+                    <strong>{testimonial.clientName}</strong>
+                    <span>
+                      {testimonial.clientChannelName} · {testimonial.clientCountry}
+                    </span>
+                  </p>
+                </article>
+              )
+            }}
+          />
         </section>
       )}
       <section className="review-section" aria-labelledby="review-heading">

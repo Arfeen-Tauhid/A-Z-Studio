@@ -301,6 +301,7 @@ export const siteSettingsSchema = z.object({
   instagramUrl: url,
   youtubeUrl: url,
   linkedinUrl: url,
+  whatsappUrl: url,
   showreelUrl: url,
   showreelPublicId: optionalText(300),
   homeHeadline: optionalText(240),

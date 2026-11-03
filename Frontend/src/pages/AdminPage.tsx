@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { apiRequest, ApiRequestError, type PageResult } from '../lib/api'
 import { sendStudioInquiryNotification } from '../lib/emailjs'
+import { isDirectVideoUrl } from '../lib/projectMedia'
 import { youtubeVideoId } from '../lib/youtube'
 
 type ResourceName =
@@ -87,7 +88,7 @@ type CloudinaryResult = { public_id?: string; error?: { message?: string } }
 type VerifiedMedia = { secureUrl: string; publicId: string }
 
 const uploadedVideoHelpText =
-  'Upload MP4, WebM, or MOV from your device, or paste a YouTube link. Uploaded audio is preserved and optimized for browser playback; previews start muted until visitors turn sound on.'
+  'Upload MP4, WebM, or MOV, or paste a link from YouTube or another social platform. Add a thumbnail for all links except YouTube.'
 
 const resourceConfig: Record<
   ResourceName,
@@ -146,7 +147,8 @@ const resourceConfig: Record<
         label: 'Thumbnail image',
         type: 'media',
         mediaResource: 'image',
-        helpText: 'YouTube video links provide their own thumbnail automatically.',
+        helpText:
+          'YouTube thumbnails are automatic. For Instagram and other platform links, add a thumbnail image.',
       },
       {
         name: 'thumbnailPublicId',
@@ -158,7 +160,7 @@ const resourceConfig: Record<
         label: 'Video link or file',
         type: 'media',
         mediaResource: 'video',
-        helpText: `${uploadedVideoHelpText} Upload a thumbnail too when using a video file.`,
+        helpText: `${uploadedVideoHelpText} For non-YouTube links and video files, paste a thumbnail URL or upload an image.`,
       },
       { name: 'videoPublicId', label: 'Video storage ID', hidden: true },
       {
@@ -273,6 +275,12 @@ const resourceConfig: Record<
       { name: 'instagramUrl', label: 'Instagram URL', type: 'url' },
       { name: 'youtubeUrl', label: 'YouTube URL', type: 'url' },
       { name: 'linkedinUrl', label: 'LinkedIn URL', type: 'url' },
+      {
+        name: 'whatsappUrl',
+        label: 'WhatsApp URL',
+        type: 'url',
+        helpText: 'Use a link such as https://wa.me/15551234567.',
+      },
       {
         name: 'showreelUrl',
         label: 'Homepage showreel link or file',
@@ -887,17 +895,22 @@ function AdminDashboard({
     if (activeTab === 'projects') {
       const youtubeVideo = youtubeVideoId(String(form.videoUrl ?? ''))
       const hasUploadedVideo = Boolean(form.videoUrl && form.videoPublicId)
-      const hasValidVideoSource = Boolean(youtubeVideo || hasUploadedVideo)
-      const hasUploadedThumbnail = Boolean(form.thumbnailUrl && form.thumbnailPublicId)
-      if (!hasValidVideoSource || (!youtubeVideo && !hasUploadedThumbnail)) {
+      const hasSocialLink = Boolean(form.videoUrl && !isDirectVideoUrl(String(form.videoUrl)))
+      const hasValidVideoSource = Boolean(youtubeVideo || hasUploadedVideo || hasSocialLink)
+      const hasThumbnail = Boolean(form.thumbnailUrl)
+      if (!hasValidVideoSource || (!youtubeVideo && !hasThumbnail)) {
         const missingMedia: Record<string, string> = {}
         if (!hasValidVideoSource)
-          missingMedia.videoUrl = 'Paste a valid YouTube link or upload a video file.'
-        if (!youtubeVideo && !hasUploadedThumbnail)
-          missingMedia.thumbnailUrl = 'Upload a thumbnail image for the video file.'
+          missingMedia.videoUrl = 'Paste a valid social media link or upload a video file.'
+        if (!youtubeVideo && !hasThumbnail)
+          missingMedia.thumbnailUrl = 'Paste a thumbnail image URL or upload an image.'
         setFieldErrors(missingMedia)
         setError('Please correct the highlighted fields.')
         return
+      }
+      if (activeTab === 'projects' && payload.status === 'published') {
+        const action = editing ? 'save these changes to' : 'publish this project to'
+        if (!window.confirm(`Are you sure you want to ${action} the public Work page?`)) return
       }
     }
     if (
@@ -1895,7 +1908,8 @@ function AdminDashboard({
                           />
                           {activeTab === 'projects' && field.name === 'videoUrl' && (
                             <small>
-                              Upload MP4, WebM, or MOV from your device, or paste a YouTube link.
+                              Upload MP4, WebM, or MOV, or paste a social media link. Add a
+                              thumbnail unless the link is from YouTube.
                             </small>
                           )}
                           {uploadingField === field.name && <small>Uploading securely…</small>}

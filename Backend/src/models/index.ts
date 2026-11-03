@@ -288,6 +288,7 @@ const siteSettingsSchema = new Schema(
     instagramUrl: { type: String, trim: true, maxlength: 2048 },
     youtubeUrl: { type: String, trim: true, maxlength: 2048 },
     linkedinUrl: { type: String, trim: true, maxlength: 2048 },
+    whatsappUrl: { type: String, trim: true, maxlength: 2048 },
     showreelUrl: { type: String, trim: true, maxlength: 2048 },
     showreelPublicId: { type: String, trim: true, maxlength: 300 },
     homeHeadline: { type: String, trim: true, maxlength: 240 },

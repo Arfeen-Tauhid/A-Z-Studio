@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { ProjectCard } from '../components/ui/ProjectCard'
+import { ProjectCarousel } from '../components/ui/ProjectCarousel'
 import { apiRequest, type PageResult, type Project } from '../lib/api'
+import { projectAspectRatio, projectAspectRatios } from '../lib/projectMedia'
 
 const categories = [
   'All work',
@@ -20,7 +21,7 @@ export function WorkPage() {
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
 
   useEffect(() => {
-    const query = new URLSearchParams({ page: String(page), limit: '9' })
+    const query = new URLSearchParams({ page: String(page), limit: '50' })
     if (category !== 'All work') query.set('category', category)
     apiRequest<PageResult<Project>>(`/api/public/projects?${query}`)
       .then((result) => {
@@ -41,6 +42,13 @@ export function WorkPage() {
     setPage(value)
     setState('loading')
   }
+
+  const groupedProjects = projectAspectRatios
+    .map((ratio) => ({
+      ratio,
+      projects: projects.filter((project) => projectAspectRatio(project) === ratio),
+    }))
+    .filter((group) => group.projects.length > 0)
 
   return (
     <div className="shell page-shell">
@@ -75,13 +83,18 @@ export function WorkPage() {
       {state === 'error' && (
         <p className="inline-error">We couldn’t load the portfolio. Please try again shortly.</p>
       )}
-      {state === 'ready' && projects.length > 0 && (
-        <div className="project-grid">
-          {projects.map((project, index) => (
-            <ProjectCard key={project._id} project={project} index={index} />
-          ))}
-        </div>
-      )}
+      {state === 'ready' &&
+        groupedProjects.map(({ ratio, projects: ratioProjects }) => (
+          <section className="work-ratio-section" key={ratio}>
+            <div className="work-project-row">
+              <ProjectCarousel
+                projects={ratioProjects}
+                ratio={ratio}
+                label={`${ratio} project videos`}
+              />
+            </div>
+          </section>
+        ))}
       {state === 'ready' && projects.length === 0 && (
         <div className="empty-work">
           <span>NEW WORK IS ON THE WAY</span>

@@ -27,6 +27,7 @@ export type SiteSettings = {
   instagramUrl?: string
   youtubeUrl?: string
   linkedinUrl?: string
+  whatsappUrl?: string
   homeHeadline?: string
   homeDescription?: string
   showreelUrl?: string

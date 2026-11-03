@@ -1,6 +1,15 @@
-import { ArrowLeft, ArrowRight, BookOpen, Eye, Heart, LogOut, Send } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  Eye,
+  Heart,
+  LogOut,
+  Send,
+} from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { AutoScrollRow } from '../components/ui/AutoScrollRow'
 import { apiRequest, ApiRequestError, type PageResult } from '../lib/api'
 
 type BlogPost = {
@@ -59,7 +68,9 @@ export function BlogsPage() {
   const viewedPosts = useRef(new Set<string>())
   const [sections, setSections] = useState<BlogSections>(emptySections)
   const [likedPosts, setLikedPosts] = useState<string[]>(readLikedPosts)
-  const [likingPost, setLikingPost] = useState('')
+  const [likingPosts, setLikingPosts] = useState<string[]>([])
+  const likedPostsRef = useRef(new Set(likedPosts))
+  const likingPostsRef = useRef(new Set<string>())
   const [post, setPost] = useState<BlogPost | null>(null)
   const [author, setAuthor] = useState<BlogAuthor | null>(null)
   const [request, setRequest] = useState(emptyRequest)
@@ -124,7 +135,7 @@ export function BlogsPage() {
         const [recent, views, likes] = await Promise.all(
           (['recent', 'views', 'likes'] as const).map((sort) =>
             apiRequest<PageResult<BlogPost>>(
-              `/api/public/blogs?sort=${sort}&limit=6${authorQuery}`,
+              `/api/public/blogs?sort=${sort}&limit=10${authorQuery}`,
             ),
           ),
         )
@@ -157,44 +168,66 @@ export function BlogsPage() {
     }
   }, [authorIdFilter, slug])
 
-  useEffect(() => {
-    if (!post) return
-    const viewedKey = `az-blog-viewed-${post.slug}`
+  function updateEngagementCount(slug: string, metric: 'viewCount' | 'likeCount', count: number) {
+    const updatedItems = (items: BlogPost[]) =>
+      items.map((blogPost) =>
+        blogPost.slug === slug
+          ? { ...blogPost, [metric]: Math.max(blogPost[metric] ?? 0, count) }
+          : blogPost,
+      )
+    setSections((current) => ({
+      recent: updatedItems(current.recent),
+      views: updatedItems(current.views).sort(
+        (left, right) =>
+          (right.viewCount ?? 0) - (left.viewCount ?? 0) ||
+          Date.parse(right.publishedAt ?? right.createdAt) -
+            Date.parse(left.publishedAt ?? left.createdAt),
+      ),
+      likes: updatedItems(current.likes).sort(
+        (left, right) =>
+          (right.likeCount ?? 0) - (left.likeCount ?? 0) ||
+          Date.parse(right.publishedAt ?? right.createdAt) -
+            Date.parse(left.publishedAt ?? left.createdAt),
+      ),
+    }))
+    setPost((current) =>
+      current?.slug === slug
+        ? { ...current, [metric]: Math.max(current[metric] ?? 0, count) }
+        : current,
+    )
+  }
+
+  function recordBlogView(item: BlogPost) {
+    const viewedKey = `az-blog-viewed-${item.slug}`
     try {
-      if (viewedPosts.current.has(post.slug) || sessionStorage.getItem(viewedKey)) return
-      viewedPosts.current.add(post.slug)
+      if (viewedPosts.current.has(item.slug) || sessionStorage.getItem(viewedKey)) return
+      sessionStorage.setItem(viewedKey, 'true')
     } catch {
-      if (viewedPosts.current.has(post.slug)) return
-      viewedPosts.current.add(post.slug)
+      if (viewedPosts.current.has(item.slug)) return
     }
-    apiRequest<{ viewCount: number }>(`/api/public/blogs/${encodeURIComponent(post.slug)}/view`, {
-      method: 'POST',
-    })
+    viewedPosts.current.add(item.slug)
+    void apiRequest<{ viewCount: number }>(
+      `/api/public/blogs/${encodeURIComponent(item.slug)}/view`,
+      { method: 'POST' },
+    )
       .then(({ viewCount }) => {
-        setPost((current) => (current?.slug === post.slug ? { ...current, viewCount } : current))
-        setSections((current) => ({
-          recent: current.recent.map((item) =>
-            item.slug === post.slug ? { ...item, viewCount } : item,
-          ),
-          views: current.views.map((item) =>
-            item.slug === post.slug ? { ...item, viewCount } : item,
-          ),
-          likes: current.likes.map((item) =>
-            item.slug === post.slug ? { ...item, viewCount } : item,
-          ),
-        }))
-        try {
-          sessionStorage.setItem(viewedKey, 'true')
-        } catch {
-          viewedPosts.current.add(post.slug)
-        }
+        updateEngagementCount(item.slug, 'viewCount', viewCount)
       })
       .catch((requestError: unknown) => {
-        viewedPosts.current.delete(post.slug)
+        viewedPosts.current.delete(item.slug)
+        try {
+          sessionStorage.removeItem(viewedKey)
+        } catch {
+          viewedPosts.current.delete(item.slug)
+        }
         setError(
           requestError instanceof Error ? requestError.message : 'Could not record this view.',
         )
       })
+  }
+
+  useEffect(() => {
+    if (post) recordBlogView(post)
   }, [post])
 
   useEffect(() => {
@@ -289,14 +322,18 @@ export function BlogsPage() {
   }
 
   async function likePost(item: BlogPost) {
-    if (likedPosts.includes(item.slug)) return
-    setLikingPost(item.slug)
+    if (likedPostsRef.current.has(item.slug) || likingPostsRef.current.has(item.slug)) return
+    likingPostsRef.current.add(item.slug)
+    setLikingPosts([...likingPostsRef.current])
     setError('')
-    const nextLikedPosts = [...likedPosts, item.slug]
+    likedPostsRef.current.add(item.slug)
+    const nextLikedPosts = [...likedPostsRef.current]
     try {
       localStorage.setItem('az-blog-liked-posts', JSON.stringify(nextLikedPosts))
     } catch {
-      setLikingPost('')
+      likedPostsRef.current.delete(item.slug)
+      likingPostsRef.current.delete(item.slug)
+      setLikingPosts([...likingPostsRef.current])
       setError('Your browser could not save the like preference.')
       return
     }
@@ -306,24 +343,14 @@ export function BlogsPage() {
         `/api/public/blogs/${encodeURIComponent(item.slug)}/like`,
         { method: 'POST' },
       )
-      setSections((current) => ({
-        ...current,
-        recent: current.recent.map((entry) =>
-          entry.slug === item.slug ? { ...entry, likeCount } : entry,
-        ),
-        views: current.views.map((entry) =>
-          entry.slug === item.slug ? { ...entry, likeCount } : entry,
-        ),
-        likes: current.likes.map((entry) =>
-          entry.slug === item.slug ? { ...entry, likeCount } : entry,
-        ),
-      }))
-      setPost((current) => (current?.slug === item.slug ? { ...current, likeCount } : current))
+      updateEngagementCount(item.slug, 'likeCount', likeCount)
     } catch (requestError) {
-      setLikedPosts(likedPosts)
+      likedPostsRef.current.delete(item.slug)
+      const restoredLikedPosts = [...likedPostsRef.current]
+      setLikedPosts(restoredLikedPosts)
       let storageError = false
       try {
-        localStorage.setItem('az-blog-liked-posts', JSON.stringify(likedPosts))
+        localStorage.setItem('az-blog-liked-posts', JSON.stringify(restoredLikedPosts))
       } catch {
         storageError = true
       }
@@ -335,7 +362,8 @@ export function BlogsPage() {
             : 'Could not like this article.',
       )
     } finally {
-      setLikingPost('')
+      likingPostsRef.current.delete(item.slug)
+      setLikingPosts([...likingPostsRef.current])
     }
   }
 
@@ -438,7 +466,7 @@ export function BlogsPage() {
             className={likedPosts.includes(item.slug) ? 'blog-like is-liked' : 'blog-like'}
             aria-label={`${likedPosts.includes(item.slug) ? 'Liked' : 'Like'} ${item.title}`}
             aria-pressed={likedPosts.includes(item.slug)}
-            disabled={likedPosts.includes(item.slug) || likingPost === item.slug}
+            disabled={likedPosts.includes(item.slug) || likingPosts.includes(item.slug)}
             onClick={() => void likePost(item)}
           >
             <Heart size={14} fill={likedPosts.includes(item.slug) ? 'currentColor' : 'none'} />
@@ -496,7 +524,7 @@ export function BlogsPage() {
                 type="button"
                 className={likedPosts.includes(post.slug) ? 'blog-like is-liked' : 'blog-like'}
                 aria-pressed={likedPosts.includes(post.slug)}
-                disabled={likedPosts.includes(post.slug) || likingPost === post.slug}
+                disabled={likedPosts.includes(post.slug) || likingPosts.includes(post.slug)}
                 onClick={() => void likePost(post)}
               >
                 <Heart size={16} fill={likedPosts.includes(post.slug) ? 'currentColor' : 'none'} />
@@ -532,7 +560,14 @@ export function BlogsPage() {
               {loadingSections ? (
                 <p className="admin-empty">Loading articles…</p>
               ) : sections[key].length ? (
-                <div className="blog-grid">{sections[key].map(blogCard)}</div>
+                <AutoScrollRow
+                  items={sections[key]}
+                  label={`${title} blog articles`}
+                  className="blog-grid auto-scroll-blog-grid"
+                  itemClassName="auto-scroll-item blog-carousel-item"
+                  onItemVisible={(item) => recordBlogView(item)}
+                  renderItem={blogCard}
+                />
               ) : (
                 <div className="blog-empty">
                   <BookOpen size={20} />

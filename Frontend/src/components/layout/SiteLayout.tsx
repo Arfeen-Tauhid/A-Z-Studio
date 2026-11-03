@@ -23,6 +23,7 @@ const currentYear = new Date().getFullYear()
 
 export function SiteLayout() {
   const location = useLocation()
+  const isHomePage = location.pathname === '/'
   const navigate = useNavigate()
   const prefersReducedMotion = useReducedMotion()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -88,6 +89,9 @@ export function SiteLayout() {
       '.inquiry-tracker-section > *',
       '.approach .process-grid > *',
       '.about-image',
+      '.about-edit-card',
+      '.about-image-caption',
+      '.about-image-timecode',
       '.about-columns > div',
       '.about-values > *',
       '.service-principle',
@@ -201,8 +205,9 @@ export function SiteLayout() {
             onFocus={() => preloadRoute('/')}
           >
             <span className="wordmark-mark">AZ</span>
-            <span>
-              A Z <span className="wordmark-light">STUDIOS</span>
+            <span className="wordmark-copy">
+              <span>A Z <span className="wordmark-light">STUDIOS</span></span>
+              <small>EDIT <i>·</i> COLOR <i>·</i> SOUND</small>
             </span>
           </Link>
           <button
@@ -219,19 +224,23 @@ export function SiteLayout() {
               <NavLink
                 key={link.to}
                 to={link.to}
+                aria-label={link.label}
                 onClick={() => setMenuOpen(false)}
                 onPointerEnter={() => preloadRoute(link.to)}
                 onFocus={() => preloadRoute(link.to)}
               >
-                {link.label}
+                <span className="nav-key-cap" aria-hidden="true">{link.label.charAt(0)}</span>
+                <span className="nav-key-label">{link.label}</span>
               </NavLink>
             ))}
             <NavLink
               className="admin-nav-link"
               to="/admin/login"
+              aria-label="Admin login"
               onClick={() => setMenuOpen(false)}
             >
-              Admin login
+              <span className="nav-key-cap" aria-hidden="true">A</span>
+              <span className="nav-key-label">Admin login</span>
             </NavLink>
             <Link
               className="nav-cta"
@@ -253,10 +262,45 @@ export function SiteLayout() {
             </div>
           }
         >
-          <Outlet />
+          <Outlet context={{ replayIntro }} />
         </Suspense>
       </main>
-      <footer className="site-footer">
+      <footer className={`site-footer${isHomePage ? ' site-footer-home' : ''}`}>
+        {isHomePage && (
+          <div className="home-footer-outro shell" aria-label="A Z Studios end credits">
+            <div className="home-footer-outro-meta">
+              <span>A Z STUDIOS / END CREDITS</span>
+              <span><i aria-hidden="true" /> FINAL EXPORT · 24 FPS</span>
+            </div>
+            <div className="home-footer-outro-copy">
+              <h2>
+                EVERY STORY
+                <br />
+                <em>GETS A LAST FRAME.</em>
+              </h2>
+              <span>Ours is just the beginning.</span>
+            </div>
+            <div className="home-footer-timeline" aria-hidden="true">
+              <div className="home-footer-track">
+                <span>V1</span>
+                <div className="home-footer-clips">
+                  <i>SELECTS</i>
+                  <i>THE FINAL CUT</i>
+                  <i>END CARD</i>
+                </div>
+              </div>
+              <div className="home-footer-track">
+                <span>A1</span>
+                <div className="home-footer-audio">
+                  {Array.from({ length: 42 }, (_, index) => (
+                    <i key={index} />
+                  ))}
+                </div>
+              </div>
+              <span className="home-footer-playhead" />
+            </div>
+          </div>
+        )}
         <div className="shell footer-top">
           <div>
             <Link className="wordmark footer-wordmark" to="/">
@@ -302,6 +346,11 @@ export function SiteLayout() {
               {settings.linkedinUrl && (
                 <a href={settings.linkedinUrl} target="_blank" rel="noreferrer">
                   LinkedIn
+                </a>
+              )}
+              {settings.whatsappUrl && (
+                <a href={settings.whatsappUrl} target="_blank" rel="noreferrer">
+                  WhatsApp
                 </a>
               )}
             </div>
@@ -359,9 +408,38 @@ export function SiteLayout() {
         {showIntro && location.pathname === '/' && (
           <Suspense
             fallback={
-              <motion.div className="camera-intro camera-intro-loading" exit={{ opacity: 0 }}>
-                <span className="eyebrow">A Z STUDIOS / INTRODUCTION</span>
-                <button className="camera-intro-skip" type="button" onClick={completeIntro}>
+              <motion.div
+                className="camera-intro editfilm-intro editfilm-loading"
+                role="dialog"
+                aria-modal="true"
+                aria-label="A Z Studios: from raw footage to final cut"
+                exit={{ opacity: 0 }}
+              >
+                <div className="editfilm-atmosphere" aria-hidden="true" />
+                <header className="editfilm-header">
+                  <span className="editfilm-brand-mark">AZ</span>
+                  <span className="editfilm-brand-name">A Z STUDIOS <i>/ PICTURE EDIT</i></span>
+                  <span className="editfilm-live"><i /> IN THE EDIT</span>
+                </header>
+                <section className="editfilm-story-copy">
+                  <span className="editfilm-chapter"><i />01 / THE FOOTAGE</span>
+                  <h1>Every story starts<br /><em>somewhere.</em></h1>
+                  <p>Hours of raw footage. Every angle holds a possibility.</p>
+                </section>
+                <div className="editfilm-loading-frame" aria-hidden="true">
+                  <span>PROGRAM / 00:00:12:08</span>
+                  <i /><b /><em />
+                  <div><i /><i /><i /><i /><i /><i /></div>
+                  <span>V1　━━━━　A1　∿∿∿∿∿　A2　∿∿∿</span>
+                </div>
+                <footer className="editfilm-footer">
+                  <span className="editfilm-timecode">00:00 <i>/ 01:03</i></span>
+                  <div className="editfilm-progress" aria-hidden="true">
+                    <span className="is-active" /><span /><span /><span /><span /><span /><span /><span /><span />
+                  </div>
+                  <span className="editfilm-footer-label">FROM RAW TO REMEMBERED</span>
+                </footer>
+                <button className="camera-intro-skip editfilm-skip" type="button" onClick={completeIntro}>
                   Skip intro <span aria-hidden="true">↗</span>
                 </button>
               </motion.div>

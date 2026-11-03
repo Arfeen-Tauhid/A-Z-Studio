@@ -110,45 +110,83 @@ export function ContactPage() {
           Tell us about your goals, timeline, and the support you need. We collaborate with clients
           in the United States, the Gulf region, and around the world.
         </p>
-      </div>
-      {sent ? (
-        <div className="form-success">
-          <CheckCircle2 size={32} />
-          <span className="eyebrow">MESSAGE RECEIVED</span>
-          <h2>Your inquiry is with our studio.</h2>
-          <p>
-            Keep this eight-digit reference number to check your inquiry status from our homepage.
-          </p>
-          <p className="inquiry-reference" aria-label={`Inquiry number ${submittedNumber}`}>
-            {submittedNumber}
-          </p>
-          {notificationError && (
-            <>
-              <p className="form-error" role="status">
-                {notificationError}
-              </p>
-              {submittedInquiry && (
-                <button
-                  className="button button-accent"
-                  type="button"
-                  disabled={isRetryingNotification}
-                  onClick={async () => {
-                    setIsRetryingNotification(true)
-                    await sendEmailNotification(submittedInquiry, submittedNumber)
-                    setIsRetryingNotification(false)
-                  }}
-                >
-                  {isRetryingNotification ? 'Retrying notification…' : 'Retry email notification'}
-                </button>
-              )}
-            </>
-          )}
-          <Link className="text-link" to="/">
-            Back to home <ArrowUpRight size={15} />
-          </Link>
+        <div className="contact-intro-meta" aria-hidden="true">
+          <span>NEW PROJECT / INTAKE</span>
+          <span>EST. REPLY · 1—2 BUSINESS DAYS</span>
         </div>
-      ) : (
-        <form className="inquiry-form" onSubmit={handleSubmit(onSubmit)} noValidate>
+      </div>
+      <div className="contact-edit-suite">
+        <aside className="contact-suite-preview" aria-hidden="true">
+          <div className="contact-preview-header">
+            <span>AZ / CREATIVE SUITE</span>
+            <span>LIVE</span>
+          </div>
+          <div className="contact-preview-monitor">
+            <span className="contact-preview-sun" />
+            <span className="contact-preview-mountains" />
+            <span className="contact-preview-crosshair" />
+            <span className="contact-preview-timecode">00:00:24:08</span>
+          </div>
+          <div className="contact-preview-title">
+            <span>YOUR NEXT FRAME</span>
+            <i />
+          </div>
+          <div className="contact-preview-timeline">
+            <span>V1</span>
+            <i />
+            <i />
+            <i />
+            <span>A1</span>
+            <b />
+            <b />
+            <b />
+            <b />
+            <b />
+            <b />
+          </div>
+          <div className="contact-preview-footer">
+            <span>IDEA IN</span>
+            <span>STORY OUT</span>
+          </div>
+        </aside>
+        {sent ? (
+          <div className="form-success contact-form-success">
+            <CheckCircle2 size={32} />
+            <span className="eyebrow">MESSAGE RECEIVED</span>
+            <h2>Your inquiry is with our studio.</h2>
+            <p>
+              Keep this eight-digit reference number to check your inquiry status from our homepage.
+            </p>
+            <p className="inquiry-reference" aria-label={`Inquiry number ${submittedNumber}`}>
+              {submittedNumber}
+            </p>
+            {notificationError && (
+              <>
+                <p className="form-error" role="status">
+                  {notificationError}
+                </p>
+                {submittedInquiry && (
+                  <button
+                    className="button button-accent"
+                    type="button"
+                    disabled={isRetryingNotification}
+                    onClick={async () => {
+                      setIsRetryingNotification(true)
+                      await sendEmailNotification(submittedInquiry, submittedNumber)
+                      setIsRetryingNotification(false)
+                    }}
+                  >
+                    {isRetryingNotification ? 'Retrying notification…' : 'Retry email notification'}
+                  </button>
+                )}
+              </>
+            )}
+            <Link className="text-link" to="/">
+              Back to home <ArrowUpRight size={15} />
+            </Link>
+          </div>
+        ) : (
+          <form className="inquiry-form contact-inquiry-form" onSubmit={handleSubmit(onSubmit)} noValidate>
           <div className="form-section-title">
             <span>01</span>
             <div>
@@ -299,8 +337,9 @@ export function ContactPage() {
             </button>
             <span>We’ll only use your details to respond to this inquiry.</span>
           </div>
-        </form>
-      )}
+          </form>
+        )}
+      </div>
     </div>
   )
 }

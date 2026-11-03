@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { ProjectCard } from '../components/ui/ProjectCard'
 import { VideoPlayer } from '../components/ui/VideoPlayer'
 import { apiRequest, type PageResult, type Project } from '../lib/api'
+import { isPlayableProjectVideo, projectAspectRatio, socialPlatformName } from '../lib/projectMedia'
 
 export function ProjectPage() {
   const { slug } = useParams()
@@ -50,9 +51,9 @@ export function ProjectPage() {
       </div>
     )
 
-  const isShortForm = project.category.trim().toLowerCase() === 'short-form'
-  const aspectRatio = project.videoAspectRatio ?? (isShortForm ? '9:16' : '16:9')
+  const aspectRatio = projectAspectRatio(project)
   const aspectRatioClass = aspectRatio.replace(':', '-')
+  const isPlayableVideo = project.videoUrl ? isPlayableProjectVideo(project.videoUrl) : false
 
   return (
     <div className="shell project-detail">
@@ -64,23 +65,35 @@ export function ProjectPage() {
         {project.clientName ? ` / ${project.clientName}` : ''}
       </span>
       <h1>{project.title}</h1>
-      {project.videoUrl ? (
+      {project.videoUrl && isPlayableVideo ? (
         <VideoPlayer
           className={`detail-video detail-video-ratio-${aspectRatioClass}`}
           source={project.videoUrl}
           title={`${project.title} project video`}
         />
       ) : project.thumbnailUrl ? (
-        <img
-          className="detail-poster"
-          src={project.thumbnailUrl}
-          alt={`${project.title} project still`}
-        />
+        <div className={`detail-poster-frame detail-poster-ratio-${aspectRatioClass}`}>
+          <img
+            className="detail-poster"
+            src={project.thumbnailUrl}
+            alt={`${project.title} project still`}
+          />
+        </div>
       ) : (
         <div
           className="detail-poster detail-poster-empty"
           aria-label="Project preview unavailable"
         />
+      )}
+      {project.videoUrl && !isPlayableVideo && (
+        <a
+          className="button button-accent project-source-link"
+          href={project.videoUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          View on {socialPlatformName(project.videoUrl)} <ArrowUpRight size={16} />
+        </a>
       )}
       <div className="project-story">
         <div>

@@ -1,17 +1,21 @@
 import { ExternalLink, Volume2, VolumeX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { youtubeVideoId } from '../../lib/youtube'
+import { youtubeThumbnailUrl, youtubeVideoId } from '../../lib/youtube'
 
 export function VideoPlayer({
   source,
   title,
+  poster,
   className = '',
   controls = true,
+  showSoundToggle = true,
 }: {
   source: string
   title: string
+  poster?: string
   className?: string
   controls?: boolean
+  showSoundToggle?: boolean
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -19,10 +23,13 @@ export function VideoPlayer({
   const [audio, setAudio] = useState({ source, muted: true })
   const [playbackError, setPlaybackError] = useState('')
   const [nearViewportSource, setNearViewportSource] = useState<string | null>(null)
+  const [loadedEmbed, setLoadedEmbed] = useState({ source, loaded: false })
   const isNearViewport =
     typeof IntersectionObserver === 'undefined' || nearViewportSource === source
   const muted = audio.source === source ? audio.muted : true
   const youtubeId = youtubeVideoId(source)
+  const videoPoster = poster ?? (youtubeId ? youtubeThumbnailUrl(source) : undefined)
+  const embedLoaded = loadedEmbed.source === source && loadedEmbed.loaded
 
   useEffect(() => {
     const player = playerRef.current
@@ -84,12 +91,16 @@ export function VideoPlayer({
       {embedUrl ? (
         isNearViewport ? (
           <>
+            {videoPoster && !embedLoaded && (
+              <img className="video-player-poster" src={videoPoster} alt="" />
+            )}
             <iframe
               ref={iframeRef}
               className="video-player-frame"
               src={embedUrl}
               title={title}
               loading="lazy"
+              onLoad={() => setLoadedEmbed({ source, loaded: true })}
               allow="autoplay; encrypted-media; picture-in-picture; web-share"
               referrerPolicy="strict-origin-when-cross-origin"
               allowFullScreen
@@ -104,6 +115,8 @@ export function VideoPlayer({
               Open on YouTube <ExternalLink size={13} />
             </a>
           </>
+        ) : videoPoster ? (
+          <img className="video-player-frame" src={videoPoster} alt="" />
         ) : (
           <div className="video-player-frame" aria-label={`${title} video loads when nearby`} />
         )
@@ -117,6 +130,7 @@ export function VideoPlayer({
           loop
           muted={muted}
           playsInline
+          poster={videoPoster}
           preload={isNearViewport ? 'metadata' : 'none'}
           src={isNearViewport ? source : undefined}
           aria-label={title}
@@ -125,16 +139,18 @@ export function VideoPlayer({
           Your browser does not support video playback.
         </video>
       )}
-      <button
-        className="video-sound-toggle"
-        type="button"
-        onClick={toggleSound}
-        aria-label={muted ? 'Unmute video' : 'Mute video'}
-        aria-pressed={!muted}
-        title={muted ? 'Turn sound on' : 'Mute sound'}
-      >
-        {muted ? <VolumeX size={17} /> : <Volume2 size={17} />}
-      </button>
+      {showSoundToggle && (
+        <button
+          className="video-sound-toggle"
+          type="button"
+          onClick={toggleSound}
+          aria-label={muted ? 'Unmute video' : 'Mute video'}
+          aria-pressed={!muted}
+          title={muted ? 'Turn sound on' : 'Mute sound'}
+        >
+          {muted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+        </button>
+      )}
       {playbackError && (
         <span className="video-playback-error" role="status">
           {playbackError}

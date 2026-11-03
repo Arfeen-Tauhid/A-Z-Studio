@@ -305,6 +305,7 @@ describe('site settings validation', () => {
       instagramUrl: 'https://instagram.com/azstudio',
       youtubeUrl: 'https://youtube.com/@azstudio',
       linkedinUrl: 'https://linkedin.com/company/azstudio',
+      whatsappUrl: 'https://wa.me/15551234567',
       showreelUrl: 'https://cdn.example.com/showreel.mp4',
     })
 
@@ -314,7 +315,12 @@ describe('site settings validation', () => {
     assert.equal(settings.instagramUrl, 'https://instagram.com/azstudio')
     assert.equal(settings.youtubeUrl, 'https://youtube.com/@azstudio')
     assert.equal(settings.linkedinUrl, 'https://linkedin.com/company/azstudio')
+    assert.equal(settings.whatsappUrl, 'https://wa.me/15551234567')
     assert.equal(settings.showreelUrl, 'https://cdn.example.com/showreel.mp4')
+    assert.equal(
+      siteSettingsSchema.safeParse({ whatsappUrl: 'javascript:alert(1)' }).success,
+      false,
+    )
     assert.equal(siteSettingsSchema.safeParse({ contactNumber: 'x'.repeat(41) }).success, false)
     assert.equal(siteSettingsSchema.safeParse({ discordId: 'x'.repeat(101) }).success, false)
   })

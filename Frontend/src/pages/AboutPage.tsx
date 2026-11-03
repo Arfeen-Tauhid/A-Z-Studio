@@ -4,17 +4,46 @@ import { Link } from 'react-router-dom'
 export function AboutPage() {
   return (
     <div className="shell page-shell about-page">
-      <div className="page-intro">
-        <span className="eyebrow">ABOUT A Z STUDIOS</span>
-        <h1>
-          Good stories
-          <br />
-          <em>deserve a great cut.</em>
-        </h1>
-        <p>
-          We’re an independent post-production studio helping brands and creators turn raw footage
-          into clear, considered video stories.
-        </p>
+      <div className="about-intro-layout">
+        <div className="page-intro">
+          <span className="eyebrow">ABOUT A Z STUDIOS</span>
+          <h1>
+            Good stories
+            <br />
+            <em>deserve a great cut.</em>
+          </h1>
+          <p>
+            We’re an independent post-production studio helping brands and creators turn raw footage
+            into clear, considered video stories.
+          </p>
+        </div>
+        <aside className="about-edit-card" aria-label="A Z Studios post-production approach">
+          <div className="about-edit-card-topline">
+            <span>AZ / POST-PRODUCTION</span>
+            <span>01—03</span>
+          </div>
+          <div className="about-edit-frame" aria-hidden="true">
+            <span />
+            <i />
+            <b />
+          </div>
+          <div className="about-edit-card-title">
+            <span>THE STORY IS IN THE DETAILS</span>
+            <span>4K</span>
+          </div>
+          <div className="about-edit-wave" aria-hidden="true">
+            {Array.from({ length: 23 }, (_, index) => (
+              <i key={index} />
+            ))}
+          </div>
+          <div className="about-edit-card-bottom">
+            <span>STORY</span>
+            <i />
+            <span>EDIT</span>
+            <i />
+            <span>FINISH</span>
+          </div>
+        </aside>
       </div>
       <div className="about-image">
         <img
@@ -25,6 +54,10 @@ export function AboutPage() {
         <div className="about-image-caption">
           <span className="eyebrow">A Z STUDIOS / POST-PRODUCTION</span>
           <strong>Make every frame earn its place.</strong>
+        </div>
+        <div className="about-image-timecode" aria-hidden="true">
+          <span>FRAME 001 / 024</span>
+          <span>PICTURE LOCK · SOUND · FINISH</span>
         </div>
       </div>
       <div className="about-columns">
@@ -52,7 +85,7 @@ export function AboutPage() {
           </p>
         </div>
       </div>
-      <div className="about-values" aria-label="What you can expect from A Z Studios">
+      <div className="about-values about-edit-values" aria-label="What you can expect from A Z Studios">
         <article>
           <span>01 / CLARITY</span>
           <h3>A considered plan.</h3>
